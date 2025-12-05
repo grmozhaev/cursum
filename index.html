@@ -3,297 +3,576 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Currency Sum Calculator</title>
+    <title>Financial State Radar</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --primary: #2563eb;
-            --bg: #f3f4f6;
-            --card: #ffffff;
-            --text: #1f2937;
-            --danger: #ef4444;
+            --bg: #f8f9fa;
+            --surface: #ffffff;
+            --text-main: #2d3748;
+            --text-sub: #718096;
+            --primary: #3182ce;
+            --accent: #38b2ac;
+            --danger: #e53e3e;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg);
-            color: var(--text);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
             display: flex;
             justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
         }
 
-        .app-container {
-            background: var(--card);
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        .container {
+            max-width: 800px;
             width: 100%;
-            max-width: 500px;
+            display: grid;
+            gap: 24px;
         }
 
-        h1 {
-            margin-top: 0;
-            font-size: 1.5rem;
-            text-align: center;
-            color: var(--primary);
+        /* --- Cards & Layout --- */
+        .card {
+            background: var(--surface);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
         }
 
-        .loading {
-            text-align: center;
-            font-size: 0.9rem;
-            color: #6b7280;
-            margin-bottom: 1rem;
-        }
+        h2, h3 { margin: 0 0 16px 0; font-weight: 600; color: var(--text-main); }
+        h2 { font-size: 1.25rem; }
+        h3 { font-size: 1rem; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.05em; }
 
-        /* Input Rows */
-        .currency-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-            align-items: center;
-        }
-
-        input[type="number"] {
-            flex: 2;
-            padding: 10px;
-            border: 1px solid #d1d5db;
+        .row-group { display: flex; flex-direction: column; gap: 10px; }
+        .input-row { display: flex; gap: 10px; align-items: center; }
+        
+        input, select {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
             border-radius: 6px;
             font-size: 1rem;
+            background: var(--bg);
+            color: var(--text-main);
+        }
+        input:focus, select:focus { outline: 2px solid var(--primary); border-color: transparent; }
+        
+        .amount-input { flex: 2; }
+        .curr-select { flex: 1; }
+        .btn-icon { background: none; border: none; color: var(--text-sub); cursor: pointer; font-size: 1.2rem; }
+        .btn-icon:hover { color: var(--danger); }
+
+        .btn-text {
+            background: none; border: none; color: var(--primary); 
+            font-weight: 600; cursor: pointer; padding: 0; font-size: 0.9rem; margin-top: 5px;
         }
 
-        select {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            background: white;
-            font-size: 1rem;
-            cursor: pointer;
-        }
-
-        .remove-btn {
-            background: none;
-            border: none;
-            color: var(--danger);
-            font-size: 1.2rem;
-            cursor: pointer;
-            padding: 0 5px;
-        }
-
-        .remove-btn:hover {
-            color: #b91c1c;
-        }
-
-        /* Controls */
-        .controls {
+        /* --- Total Display --- */
+        .total-section {
             display: flex;
             justify-content: space-between;
-            margin-top: 1rem;
-            margin-bottom: 2rem;
+            align-items: flex-end;
+            margin-bottom: 20px;
+        }
+        .total-label { font-size: 0.9rem; color: var(--text-sub); margin-bottom: 4px; }
+        .big-number { font-size: 2.5rem; font-weight: 700; color: var(--text-main); line-height: 1; }
+        .target-select-wrapper { text-align: right; }
+
+        /* --- Composition Bar --- */
+        .comp-bar-container { height: 8px; display: flex; border-radius: 4px; overflow: hidden; margin-top: 10px; background: var(--border); }
+        .comp-segment { height: 100%; transition: width 0.3s ease; }
+        .comp-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 0.8rem; color: var(--text-sub); }
+        .legend-item span { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+
+        /* --- Dashboard Grid --- */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
         }
 
-        .add-btn {
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-        }
+        /* Sensitivity & Projections */
+        .stat-line { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 6px; }
+        .stat-val { font-weight: 600; }
+        .sub-text { font-size: 0.8rem; color: var(--text-sub); margin-top: -4px; margin-bottom: 8px; display: block;}
 
-        .add-btn:hover {
-            background-color: #1d4ed8;
-        }
+        /* Slider */
+        .slider-container { margin-top: 10px; }
+        input[type=range] { width: 100%; margin: 10px 0; }
+        .slider-labels { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-sub); }
 
-        /* Result Section */
-        .result-section {
-            border-top: 2px solid #e5e7eb;
-            padding-top: 1.5rem;
-        }
-
-        .target-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .total-display {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: var(--primary);
-            text-align: right;
-            word-break: break-all;
-        }
-
-        .hidden {
-            display: none;
-        }
+        /* History */
+        .chart-container { position: relative; height: 250px; width: 100%; }
+        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .btn-primary { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+        .btn-secondary { background: var(--bg); color: var(--text-main); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+        
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-<div class="app-container">
-    <h1>Currency Summer</h1>
+<div class="container">
     
-    <div id="loading" class="loading">Fetching latest exchange rates...</div>
-
-    <div id="main-interface" class="hidden">
-        <div id="inputs-container">
-            <!-- JavaScript will add rows here -->
+    <!-- MAIN CALCULATOR CARD -->
+    <div class="card">
+        <div class="header-actions">
+            <h2>Portfolio</h2>
+            <button class="btn-primary" onclick="app.saveSnapshot()">Save Snapshot</button>
         </div>
 
-        <div class="controls">
-            <button class="add-btn" onclick="addCurrencyRow()">+ Add Amount</button>
-        </div>
-
-        <div class="result-section">
-            <div class="target-wrapper">
-                <label>Convert Total To:</label>
-                <select id="target-currency" onchange="calculateTotal()"></select>
+        <div class="total-section">
+            <div>
+                <div class="total-label">Total Estimate</div>
+                <div class="big-number" id="main-total">0.00</div>
             </div>
-            <div class="total-display" id="total-amount">0.00</div>
+            <div class="target-select-wrapper">
+                <div class="total-label">Currency</div>
+                <select id="target-currency" onchange="app.update()"></select>
+            </div>
+        </div>
+
+        <!-- Composition Visuals -->
+        <div id="comp-bar" class="comp-bar-container"></div>
+        <div id="comp-legend" class="comp-legend"></div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border); margin: 20px 0;">
+
+        <!-- Inputs -->
+        <h3>Assets</h3>
+        <div id="asset-list" class="row-group"></div>
+        <button class="btn-text" onclick="app.addRow('asset')">+ Add Asset</button>
+
+        <div style="margin-top: 20px;">
+            <h3>Monthly Income (Optional)</h3>
+            <div id="income-list" class="row-group"></div>
+            <button class="btn-text" onclick="app.addRow('income')">+ Add Income Source</button>
         </div>
     </div>
+
+    <!-- DASHBOARD WIDGETS -->
+    <div class="dashboard-grid">
+        
+        <!-- 1. What-If Slider -->
+        <div class="card">
+            <h3>Simulate FX Shift</h3>
+            <div class="sub-text">Change foreign rates vs Target</div>
+            <div class="slider-container">
+                <input type="range" id="fx-slider" min="-20" max="20" value="0" step="1" oninput="app.update()">
+                <div class="slider-labels">
+                    <span>-20%</span>
+                    <span id="slider-val" style="color:var(--primary); font-weight:bold;">0%</span>
+                    <span>+20%</span>
+                </div>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-sub); margin-top: 10px;">
+                Calculates total as if all foreign currencies strengthened or weakened by this %.
+            </p>
+        </div>
+
+        <!-- 2. Projections & Runway -->
+        <div class="card">
+            <h3>Projections</h3>
+            <div class="stat-line">
+                <span>Runway</span>
+                <span class="stat-val" id="runway-val">--</span>
+            </div>
+            <div class="sub-text" style="margin-bottom: 12px">Based on total / monthly income</div>
+            
+            <div class="stat-line"><span>+3 Months</span> <span class="stat-val" id="proj-3m">--</span></div>
+            <div class="stat-line"><span>+6 Months</span> <span class="stat-val" id="proj-6m">--</span></div>
+            <div class="stat-line"><span>+12 Months</span> <span class="stat-val" id="proj-12m">--</span></div>
+        </div>
+
+        <!-- 3. Sensitivity -->
+        <div class="card">
+            <h3>Sensitivity</h3>
+            <div class="sub-text">Impact of ±5% move on Total</div>
+            <div id="sensitivity-list">
+                <!-- Javascript populates this -->
+            </div>
+        </div>
+    </div>
+
+    <!-- HISTORY CHART -->
+    <div class="card">
+        <div class="header-actions">
+            <h3>History</h3>
+            <button class="btn-secondary" onclick="app.clearHistory()">Clear Data</button>
+        </div>
+        <div class="chart-container">
+            <canvas id="historyChart"></canvas>
+        </div>
+    </div>
+
 </div>
 
 <script>
-    // Configuration
-    const API_URL = 'https://open.er-api.com/v6/latest/USD';
-    let rates = {};
-    let currencies = [];
+const API_URL = 'https://open.er-api.com/v6/latest/USD';
 
-    // DOM Elements
-    const inputsContainer = document.getElementById('inputs-container');
-    const targetSelect = document.getElementById('target-currency');
-    const totalDisplay = document.getElementById('total-amount');
-    const loadingDiv = document.getElementById('loading');
-    const mainInterface = document.getElementById('main-interface');
+const app = {
+    rates: {},
+    currencies: [],
+    data: {
+        assets: [],
+        income: [],
+        history: [],
+        target: 'USD'
+    },
+    chart: null,
+    colors: ['#3182ce', '#38b2ac', '#805ad5', '#d53f8c', '#dd6b20', '#319795', '#718096'],
 
-    // Initialize App
-    async function init() {
+    async init() {
+        // Load local storage
+        const saved = localStorage.getItem('finRadarData');
+        if (saved) this.data = JSON.parse(saved);
+
+        // Ensure defaults if empty
+        if (!this.data.assets || !this.data.assets.length) this.data.assets = [{id: 1, amount: 0, currency: 'USD'}];
+        if (!this.data.income || !this.data.income.length) this.data.income = [{id: 1, amount: 0, currency: 'USD'}];
+        if (!this.data.history) this.data.history = [];
+        
+        // Fetch Rates
         try {
-            const response = await fetch(API_URL);
-            const data = await response.json();
-            
-            if (data.result === "success") {
-                rates = data.rates;
-                currencies = Object.keys(rates).sort();
-                
-                populateTargetDropdown();
-                
-                // Add two default rows for the user
-                addCurrencyRow('RUB', 1000);
-                addCurrencyRow('EUR', 50);
-                
-                // Set default target to USD
-                targetSelect.value = 'USD';
-
-                loadingDiv.classList.add('hidden');
-                mainInterface.classList.remove('hidden');
-                calculateTotal();
-            } else {
-                loadingDiv.textContent = "Error loading rates. Please refresh.";
-            }
-        } catch (error) {
-            loadingDiv.textContent = "Network error. Check internet connection.";
-            console.error(error);
+            const res = await fetch(API_URL);
+            const json = await res.json();
+            this.rates = json.rates;
+            this.currencies = Object.keys(this.rates).sort();
+        } catch (e) {
+            console.error("API Error", e);
+            // Fallback rates if offline
+            this.rates = {USD:1, EUR:0.92, RUB:90, GBP:0.79, JPY:150, CNY:7.2}; 
+            this.currencies = Object.keys(this.rates);
         }
-    }
 
-    // Populate the main target dropdown
-    function populateTargetDropdown() {
-        currencies.forEach(curr => {
-            const option = document.createElement('option');
-            option.value = curr;
-            option.textContent = curr;
-            targetSelect.appendChild(option);
+        this.renderInputs();
+        this.initChart();
+        this.update();
+    },
+
+    saveState() {
+        // We sync from DOM before saving to ensure what you see is what is saved
+        this.syncAllFromDOM();
+        
+        const cleanData = {
+            assets: this.data.assets,
+            income: this.data.income,
+            history: this.data.history,
+            target: document.getElementById('target-currency').value
+        };
+        
+        localStorage.setItem('finRadarData', JSON.stringify(cleanData));
+    },
+
+    getInputs(type) {
+        const container = document.getElementById(type === 'asset' ? 'asset-list' : 'income-list');
+        if (!container) return []; // Safety check
+        const rows = container.querySelectorAll('.input-row');
+        return Array.from(rows).map(row => ({
+            id: parseInt(row.dataset.id),
+            amount: parseFloat(row.querySelector('input').value) || 0,
+            currency: row.querySelector('select').value
+        }));
+    },
+
+    // Helper to capture state of BOTH lists
+    syncAllFromDOM() {
+        this.data.assets = this.getInputs('asset');
+        this.data.income = this.getInputs('income');
+    },
+
+    addRow(type) {
+        // Fix: Capture both lists so the "other" list doesn't revert
+        this.syncAllFromDOM();
+
+        const list = type === 'asset' ? this.data.assets : this.data.income;
+        list.push({ id: Date.now(), amount: 0, currency: 'USD' });
+
+        this.renderInputs(); 
+        this.update();
+    },
+
+    removeRow(type, id) {
+        // Fix: Capture both lists before removing
+        this.syncAllFromDOM();
+
+        if (type === 'asset') {
+            this.data.assets = this.data.assets.filter(x => x.id !== id);
+        } else {
+            this.data.income = this.data.income.filter(x => x.id !== id);
+        }
+
+        this.renderInputs();
+        this.update();
+    },
+
+    renderInputs() {
+        const targetSel = document.getElementById('target-currency');
+        if(!targetSel) return; // Stop if DOM not ready
+
+        // Populate Target Dropdown only if empty
+        if(targetSel.options.length === 0) {
+            this.currencies.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c; opt.text = c;
+                targetSel.add(opt);
+            });
+            targetSel.value = this.data.target || 'USD';
+        }
+
+        ['asset', 'income'].forEach(type => {
+            const container = document.getElementById(type === 'asset' ? 'asset-list' : 'income-list');
+            if(!container) return;
+
+            const sourceData = type === 'asset' ? this.data.assets : this.data.income;
+            
+            container.innerHTML = '';
+            sourceData.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'input-row';
+                div.dataset.id = item.id;
+                div.innerHTML = `
+                    <input type="number" class="amount-input" value="${item.amount || ''}" placeholder="0.00" oninput="app.update()">
+                    <select class="curr-select" onchange="app.update()">
+                        ${this.currencies.map(c => `<option value="${c}" ${c===item.currency?'selected':''}>${c}</option>`).join('')}
+                    </select>
+                    <button class="btn-icon" onclick="app.removeRow('${type}', ${item.id})">&times;</button>
+                `;
+                container.appendChild(div);
+            });
         });
-    }
+    },
 
-    // Add a new input row
-    function addCurrencyRow(defaultCurr = 'USD', defaultValue = '') {
-        const row = document.createElement('div');
-        row.className = 'currency-row';
+    calculate() {
+        const assets = this.getInputs('asset');
+        const income = this.getInputs('income');
+        const targetEl = document.getElementById('target-currency');
+        const sliderEl = document.getElementById('fx-slider');
+        
+        // Safety check if DOM elements missing
+        if(!targetEl || !sliderEl) return { totalAsset: 0, totalIncome: 0, composition: {}, target: 'USD' };
 
-        // Amount Input
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.placeholder = 'Amount';
-        input.value = defaultValue;
-        input.oninput = calculateTotal; // Recalculate when user types
+        const target = targetEl.value;
+        const sliderPct = parseFloat(sliderEl.value) / 100;
 
-        // Currency Selector
-        const select = document.createElement('select');
-        currencies.forEach(curr => {
-            const option = document.createElement('option');
-            option.value = curr;
-            option.textContent = curr;
-            if(curr === defaultCurr) option.selected = true;
-            select.appendChild(option);
-        });
-        select.onchange = calculateTotal; // Recalculate when currency changes
-
-        // Remove Button
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-btn';
-        removeBtn.innerHTML = '&times;';
-        removeBtn.title = "Remove row";
-        removeBtn.onclick = function() {
-            row.remove();
-            calculateTotal();
+        const getVal = (amt, curr) => {
+            if(!this.rates[curr]) return 0;
+            const valInBase = amt / this.rates[curr];
+            const valInTarget = valInBase * this.rates[target];
+            if (curr !== target) {
+                return valInTarget * (1 + sliderPct);
+            }
+            return valInTarget;
         };
 
-        row.appendChild(input);
-        row.appendChild(select);
-        row.appendChild(removeBtn);
-        inputsContainer.appendChild(row);
+        let totalAsset = 0;
+        const composition = {}; 
         
-        calculateTotal();
-    }
+        assets.forEach(a => {
+            const val = getVal(a.amount, a.currency);
+            totalAsset += val;
+            if(!composition[a.currency]) composition[a.currency] = 0;
+            composition[a.currency] += val;
+        });
 
-    // Core Calculation Logic
-    function calculateTotal() {
-        let totalInUSD = 0;
-        const rows = document.querySelectorAll('.currency-row');
+        let totalIncome = 0;
+        income.forEach(i => {
+            totalIncome += getVal(i.amount, i.currency);
+        });
 
-        rows.forEach(row => {
-            const amount = parseFloat(row.querySelector('input').value);
-            const currency = row.querySelector('select').value;
+        return { totalAsset, totalIncome, composition, target };
+    },
+
+    update() {
+        const res = this.calculate();
+        const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: res.target });
+
+        // Update Slider Text
+        const sliderVal = document.getElementById('fx-slider').value;
+        const sliderTxt = document.getElementById('slider-val');
+        if(sliderTxt) {
+            sliderTxt.textContent = (sliderVal > 0 ? '+' : '') + sliderVal + '%';
+            sliderTxt.style.color = sliderVal == 0 ? 'var(--text-sub)' : (sliderVal > 0 ? '#38b2ac' : '#e53e3e');
+        }
+
+        // Main Total
+        const totalEl = document.getElementById('main-total');
+        if(totalEl) totalEl.textContent = fmt.format(res.totalAsset);
+
+        // Composition Bar
+        this.renderComposition(res.composition, res.totalAsset);
+
+        // Projections
+        this.renderProjections(res, fmt);
+
+        // Sensitivity
+        this.renderSensitivity(res.composition, res.totalAsset, res.target, fmt);
+        
+        // Save state silently
+        this.saveState();
+    },
+
+    renderComposition(comp, total) {
+        const bar = document.getElementById('comp-bar');
+        const leg = document.getElementById('comp-legend');
+        if(!bar || !leg) return;
+        
+        bar.innerHTML = ''; leg.innerHTML = '';
+
+        if(total === 0) return;
+
+        const sorted = Object.entries(comp).sort((a,b) => b[1] - a[1]);
+        
+        sorted.forEach((item, idx) => {
+            const [curr, val] = item;
+            const pct = (val / total) * 100;
+            if(pct < 1) return;
+
+            const color = this.colors[idx % this.colors.length];
+
+            const seg = document.createElement('div');
+            seg.className = 'comp-segment';
+            seg.style.width = pct + '%';
+            seg.style.backgroundColor = color;
+            bar.appendChild(seg);
+
+            const lItem = document.createElement('div');
+            lItem.className = 'legend-item';
+            lItem.innerHTML = `<span style="background:${color}"></span>${curr} ${Math.round(pct)}%`;
+            leg.appendChild(lItem);
+        });
+    },
+
+    renderProjections(res, fmt) {
+        const runwayDiv = document.getElementById('runway-val');
+        if(!runwayDiv) return;
+
+        if (res.totalIncome > 0) {
+            const months = res.totalAsset / res.totalIncome;
+            runwayDiv.textContent = months.toFixed(1) + " Months";
+            runwayDiv.style.color = months < 3 ? 'var(--danger)' : 'var(--text-main)';
+        } else {
+            runwayDiv.textContent = "∞";
+            runwayDiv.style.color = 'var(--text-sub)';
+        }
+
+        const project = (m) => fmt.format(res.totalAsset + (res.totalIncome * m));
+        document.getElementById('proj-3m').textContent = project(3);
+        document.getElementById('proj-6m').textContent = project(6);
+        document.getElementById('proj-12m').textContent = project(12);
+    },
+
+    renderSensitivity(comp, total, target, fmt) {
+        const list = document.getElementById('sensitivity-list');
+        if(!list) return;
+        list.innerHTML = '';
+        
+        Object.keys(comp).forEach(curr => {
+            if(curr === target) return; 
+
+            const val = comp[curr];
+            const impact5 = val * 0.05; 
             
-            if (!isNaN(amount)) {
-                // Convert input currency to Base (USD)
-                // Rate logic: 1 USD = X Currency. Therefore USD = Amount / Rate
-                const rateToUSD = rates[currency]; 
-                const valueInUSD = amount / rateToUSD;
-                totalInUSD += valueInUSD;
+            const div = document.createElement('div');
+            div.className = 'stat-line';
+            div.style.borderBottom = '1px dashed var(--border)';
+            div.style.padding = '4px 0';
+            
+            const delta = new Intl.NumberFormat('en-US', { 
+                style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 
+            }).format(impact5);
+
+            div.innerHTML = `
+                <span>${curr} &plusmn;5%</span>
+                <span class="stat-val" style="font-size:0.9rem">&plusmn; ${target} ${delta}</span>
+            `;
+            list.appendChild(div);
+        });
+
+        if(list.innerHTML === '') {
+            list.innerHTML = '<span class="sub-text">Portfolio is 100% in Target Currency.</span>';
+        }
+    },
+
+    saveSnapshot() {
+        const res = this.calculate();
+        const now = new Date();
+        const snapshot = {
+            ts: now.getTime(),
+            dateStr: now.toLocaleDateString(),
+            total: res.totalAsset,
+            currency: res.target
+        };
+
+        this.data.history.push(snapshot);
+        if(this.data.history.length > 50) this.data.history.shift();
+        
+        this.saveState();
+        this.updateChart();
+        
+        const btn = document.querySelector('.btn-primary');
+        const oldTxt = btn.textContent;
+        btn.textContent = "Saved!";
+        setTimeout(() => btn.textContent = oldTxt, 1500);
+    },
+
+    clearHistory() {
+        if(confirm("Delete all history snapshots?")) {
+            this.data.history = [];
+            this.saveState();
+            this.updateChart();
+        }
+    },
+
+    initChart() {
+        const ctx = document.getElementById('historyChart').getContext('2d');
+        if(!ctx) return;
+
+        this.chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                    y: { beginAtZero: false, grid: { color: '#f1f5f9' } }
+                }
             }
         });
+        this.updateChart();
+    },
 
-        // Convert Total USD to Target Currency
-        const targetCurrency = targetSelect.value;
-        const targetRate = rates[targetCurrency];
-        const finalValue = totalInUSD * targetRate;
+    updateChart() {
+        if(!this.chart) return;
+        
+        const history = this.data.history || [];
+        const currentTarget = document.getElementById('target-currency').value;
+        const relevantHistory = history.filter(h => h.currency === currentTarget);
 
-        // Format and display
-        // Using Intl.NumberFormat for nice currency formatting (e.g. 1,000.00)
-        const formatter = new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: targetCurrency,
-            minimumFractionDigits: 2
-        });
-
-        totalDisplay.textContent = formatter.format(finalValue);
+        this.chart.data.labels = relevantHistory.map(h => h.dateStr);
+        this.chart.data.datasets = [{
+            label: 'Total (' + currentTarget + ')',
+            data: relevantHistory.map(h => h.total),
+            borderColor: '#3182ce',
+            backgroundColor: 'rgba(49, 130, 206, 0.1)',
+            borderWidth: 2,
+            tension: 0.3,
+            fill: true,
+            pointRadius: 3
+        }];
+        this.chart.update();
     }
+};
 
-    // Start
-    init();
-
+// Start logic when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    app.init();
+});
 </script>
-
 </body>
 </html>
