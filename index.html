@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Currency Sum Calculator</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f3f4f6;
+            --card: #ffffff;
+            --text: #1f2937;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .app-container {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            text-align: center;
+            color: var(--primary);
+        }
+
+        .loading {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin-bottom: 1rem;
+        }
+
+        /* Input Rows */
+        .currency-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        input[type="number"] {
+            flex: 2;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        select {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .remove-btn {
+            background: none;
+            border: none;
+            color: var(--danger);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0 5px;
+        }
+
+        .remove-btn:hover {
+            color: #b91c1c;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .add-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .add-btn:hover {
+            background-color: #1d4ed8;
+        }
+
+        /* Result Section */
+        .result-section {
+            border-top: 2px solid #e5e7eb;
+            padding-top: 1.5rem;
+        }
+
+        .target-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .total-display {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            text-align: right;
+            word-break: break-all;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h1>Currency Summer</h1>
+    
+    <div id="loading" class="loading">Fetching latest exchange rates...</div>
+
+    <div id="main-interface" class="hidden">
+        <div id="inputs-container">
+            <!-- JavaScript will add rows here -->
+        </div>
+
+        <div class="controls">
+            <button class="add-btn" onclick="addCurrencyRow()">+ Add Amount</button>
+        </div>
+
+        <div class="result-section">
+            <div class="target-wrapper">
+                <label>Convert Total To:</label>
+                <select id="target-currency" onchange="calculateTotal()"></select>
+            </div>
+            <div class="total-display" id="total-amount">0.00</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Configuration
+    const API_URL = 'https://open.er-api.com/v6/latest/USD';
+    let rates = {};
+    let currencies = [];
+
+    // DOM Elements
+    const inputsContainer = document.getElementById('inputs-container');
+    const targetSelect = document.getElementById('target-currency');
+    const totalDisplay = document.getElementById('total-amount');
+    const loadingDiv = document.getElementById('loading');
+    const mainInterface = document.getElementById('main-interface');
+
+    // Initialize App
+    async function init() {
+        try {
+            const response = await fetch(API_URL);
+            const data = await response.json();
+            
+            if (data.result === "success") {
+                rates = data.rates;
+                currencies = Object.keys(rates).sort();
+                
+                populateTargetDropdown();
+                
+                // Add two default rows for the user
+                addCurrencyRow('RUB', 1000);
+                addCurrencyRow('EUR', 50);
+                
+                // Set default target to USD
+                targetSelect.value = 'USD';
+
+                loadingDiv.classList.add('hidden');
+                mainInterface.classList.remove('hidden');
+                calculateTotal();
+            } else {
+                loadingDiv.textContent = "Error loading rates. Please refresh.";
+            }
+        } catch (error) {
+            loadingDiv.textContent = "Network error. Check internet connection.";
+            console.error(error);
+        }
+    }
+
+    // Populate the main target dropdown
+    function populateTargetDropdown() {
+        currencies.forEach(curr => {
+            const option = document.createElement('option');
+            option.value = curr;
+            option.textContent = curr;
+            targetSelect.appendChild(option);
+        });
+    }
+
+    // Add a new input row
+    function addCurrencyRow(defaultCurr = 'USD', defaultValue = '') {
+        const row = document.createElement('div');
+        row.className = 'currency-row';
+
+        // Amount Input
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.placeholder = 'Amount';
+        input.value = defaultValue;
+        input.oninput = calculateTotal; // Recalculate when user types
+
+        // Currency Selector
+        const select = document.createElement('select');
+        currencies.forEach(curr => {
+            const option = document.createElement('option');
+            option.value = curr;
+            option.textContent = curr;
+            if(curr === defaultCurr) option.selected = true;
+            select.appendChild(option);
+        });
+        select.onchange = calculateTotal; // Recalculate when currency changes
+
+        // Remove Button
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-btn';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.title = "Remove row";
+        removeBtn.onclick = function() {
+            row.remove();
+            calculateTotal();
+        };
+
+        row.appendChild(input);
+        row.appendChild(select);
+        row.appendChild(removeBtn);
+        inputsContainer.appendChild(row);
+        
+        calculateTotal();
+    }
+
+    // Core Calculation Logic
+    function calculateTotal() {
+        let totalInUSD = 0;
+        const rows = document.querySelectorAll('.currency-row');
+
+        rows.forEach(row => {
+            const amount = parseFloat(row.querySelector('input').value);
+            const currency = row.querySelector('select').value;
+            
+            if (!isNaN(amount)) {
+                // Convert input currency to Base (USD)
+                // Rate logic: 1 USD = X Currency. Therefore USD = Amount / Rate
+                const rateToUSD = rates[currency]; 
+                const valueInUSD = amount / rateToUSD;
+                totalInUSD += valueInUSD;
+            }
+        });
+
+        // Convert Total USD to Target Currency
+        const targetCurrency = targetSelect.value;
+        const targetRate = rates[targetCurrency];
+        const finalValue = totalInUSD * targetRate;
+
+        // Format and display
+        // Using Intl.NumberFormat for nice currency formatting (e.g. 1,000.00)
+        const formatter = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: targetCurrency,
+            minimumFractionDigits: 2
+        });
+
+        totalDisplay.textContent = formatter.format(finalValue);
+    }
+
+    // Start
+    init();
+
+</script>
+
+</body>
+</html>
