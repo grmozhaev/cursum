@@ -129,7 +129,7 @@
     <div class="card">
         <div class="header-actions">
             <h2>Portfolio</h2>
-            <button class="btn-primary" onclick="app.saveSnapshot()">Save Snapshot</button>
+            <button class="btn-primary" onclick="app.saveSnapshot()" data-testid="save-snapshot">Save Snapshot</button>
         </div>
 
         <div class="total-section">
@@ -142,6 +142,9 @@
                 <select id="target-currency" onchange="app.update()"></select>
             </div>
         </div>
+
+        <p id="rates-status" role="status" data-testid="rates-status" style="font-size: 0.85rem; color: var(--text-sub);"></p>
+        <p id="conversion-status" role="status" data-testid="conversion-status" style="font-size: 0.85rem; color: var(--danger);"></p>
 
         <!-- Composition Visuals -->
         <div id="comp-bar" class="comp-bar-container"></div>
@@ -257,18 +260,7 @@ const app = {
         if (!this.data.history) this.data.history = [];
         if (!this.data.expense) this.data.expense = { amount: null, currency: 'USD' };
         
-        // Fetch Rates
-        try {
-            const res = await fetch(API_URL);
-            const json = await res.json();
-            this.rates = json.rates;
-            this.currencies = Object.keys(this.rates).sort();
-        } catch (e) {
-            console.error("API Error", e);
-            // Fallback rates if offline
-            this.rates = {USD:1, EUR:0.92, RUB:90, GBP:0.79, JPY:150, CNY:7.2}; 
-            this.currencies = Object.keys(this.rates);
-        }
+        await this.loadRates();
 
         // Keep stored currency selections if the rates service is unavailable.
         const savedCurrencies = [this.data.target, this.data.expense.currency, ...this.data.assets.map(item => item.currency), ...this.data.income.map(item => item.currency)];
@@ -276,6 +268,42 @@ const app = {
         this.renderInputs();
         this.initChart();
         this.update();
+    },
+
+    async loadRates() {
+        const validRates = rates => rates && typeof rates === 'object' && rates.USD === 1 &&
+            Object.entries(rates).every(([code, rate]) => /^[A-Z]{3}$/.test(code) && Number.isFinite(rate) && rate > 0);
+        const describeTime = timestamp => {
+            const date = new Date(timestamp);
+            return timestamp && Number.isFinite(date.getTime()) ? date.toLocaleString() : 'update time unavailable';
+        };
+        const status = document.getElementById('rates-status');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        try {
+            const response = await fetch(API_URL, { signal: controller.signal });
+            if (!response.ok) throw new Error('Exchange rate request failed');
+            const json = await response.json();
+            if (json.result !== 'success' || !validRates(json.rates)) throw new Error('Invalid exchange rate data');
+            this.rates = json.rates;
+            this.currencies = Object.keys(this.rates).sort();
+            const updatedAt = json.time_last_update_utc || null;
+            status.textContent = `Exchange rates: open.er-api.com · Provider update: ${describeTime(updatedAt)}`;
+            try { localStorage.setItem('finRadarRatesV2', JSON.stringify({ rates: this.rates, updatedAt })); } catch (_) {}
+        } catch (error) {
+            let cached = null;
+            try { cached = JSON.parse(localStorage.getItem('finRadarRatesV2')); } catch (_) {}
+            if (cached && validRates(cached.rates)) {
+                this.rates = cached.rates;
+                status.textContent = `Live rates unavailable. Using last saved rates from open.er-api.com · Provider update: ${describeTime(cached.updatedAt)}. Reload to retry.`;
+            } else {
+                this.rates = { USD: 1 };
+                status.textContent = 'Exchange rates unavailable. Amounts in the same currency can still be calculated. Reload to retry.';
+            }
+            this.currencies = Object.keys(this.rates).sort();
+        } finally {
+            clearTimeout(timeout);
+        }
     },
 
     saveState() {
@@ -397,8 +425,10 @@ const app = {
         const target = targetEl.value;
         const sliderPct = parseFloat(sliderEl.value) / 100;
 
+        const hasRate = (curr) => curr === target || Boolean(this.rates[curr] && this.rates[target]);
         const getVal = (amt, curr) => {
-            if(!this.rates[curr]) return 0;
+            if (curr === target) return amt;
+            if (!hasRate(curr)) return 0;
             const valInBase = amt / this.rates[curr];
             const valInTarget = valInBase * this.rates[target];
             if (curr !== target) {
@@ -423,9 +453,9 @@ const app = {
         });
 
         const expense = expenseAmount === '' ? null : Number(expenseAmount);
-        const expenseRateAvailable = Boolean(this.rates[expenseCurrency] && this.rates[target]);
-        const assetsRatesAvailable = assets.every(a => !a.amount || Boolean(this.rates[a.currency] && this.rates[target]));
-        const incomeRatesAvailable = income.every(i => !i.amount || Boolean(this.rates[i.currency] && this.rates[target]));
+        const expenseRateAvailable = hasRate(expenseCurrency);
+        const assetsRatesAvailable = assets.every(a => !a.amount || hasRate(a.currency));
+        const incomeRatesAvailable = income.every(i => !i.amount || hasRate(i.currency));
         const totalExpense = expense !== null && Number.isFinite(expense) && expense >= 0 && expenseRateAvailable ? getVal(expense, expenseCurrency) : null;
         return { totalAsset, totalIncome, totalExpense, expenseRateAvailable, assetsRatesAvailable, incomeRatesAvailable, composition, target };
     },
@@ -444,16 +474,20 @@ const app = {
 
         // Main Total
         const totalEl = document.getElementById('main-total');
-        if(totalEl) totalEl.textContent = fmt.format(res.totalAsset);
+        if(totalEl) totalEl.textContent = res.assetsRatesAvailable ? fmt.format(res.totalAsset) : '—';
+        const conversionStatus = document.getElementById('conversion-status');
+        conversionStatus.textContent = res.assetsRatesAvailable ? '' : 'Some asset exchange rates are unavailable. The total and snapshot are unavailable until rates can be loaded.';
+        document.querySelector('[data-testid="save-snapshot"]').disabled = !res.assetsRatesAvailable;
 
         // Composition Bar
-        this.renderComposition(res.composition, res.totalAsset);
+        this.renderComposition(res.assetsRatesAvailable ? res.composition : {}, res.assetsRatesAvailable ? res.totalAsset : 0);
 
         // Projections
         this.renderProjections(res, fmt);
 
         // Sensitivity
-        this.renderSensitivity(res.composition, res.totalAsset, res.target, fmt);
+        if (res.assetsRatesAvailable) this.renderSensitivity(res.composition, res.totalAsset, res.target, fmt);
+        else document.getElementById('sensitivity-list').textContent = 'Exchange rate unavailable';
         
         // Save state silently
         this.saveState();
@@ -574,6 +608,7 @@ const app = {
 
     saveSnapshot() {
         const res = this.calculate();
+        if (!res.assetsRatesAvailable) return;
         const now = new Date();
         const snapshot = {
             ts: now.getTime(),
