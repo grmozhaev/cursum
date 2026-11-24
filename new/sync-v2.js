@@ -68,6 +68,7 @@ const cloud = {
     document.getElementById('cloud-form').hidden = true;
     document.getElementById('cloud-signout').hidden = false;
     document.getElementById('cloud-account').open = false;
+    document.getElementById('cloud-account').hidden = true;
     this.status('Checking cloud data…');
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(this.metaKey)); } catch (_) {}
@@ -220,6 +221,7 @@ const cloud = {
     this.user = null; this.ready = false; this.dirty = false; this.connectionFailed = false;
     this.choices(false);
     document.getElementById('cloud-form').hidden = false;
+    document.getElementById('cloud-account').hidden = false;
     document.getElementById('cloud-account').open = true;
     document.getElementById('cloud-signout').hidden = true;
     this.status('Signed out. The browser copy remains on this device.');
