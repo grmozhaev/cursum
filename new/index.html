@@ -123,6 +123,11 @@
         <p><a href="../">Open current version</a></p>
         <button class="btn-secondary" type="button" onclick="app.copyCurrentData()" data-testid="copy-current-data">Copy data from current version</button>
         <p id="copy-status" role="status" data-testid="copy-status"></p>
+        <button class="btn-secondary" type="button" onclick="app.downloadBackup()" data-testid="download-v2-backup">Download v2 backup</button>
+        <button class="btn-secondary" type="button" onclick="document.getElementById('restore-file').click()" data-testid="restore-v2-backup">Restore v2 backup</button>
+        <input id="restore-file" type="file" accept="application/json,.json" hidden onchange="app.restoreBackup(this)" data-testid="restore-file">
+        <p class="sub-text">Backups include your v2 assets, income, expenses, and history. Restoring replaces the v2 copy in this browser.</p>
+        <p id="backup-status" role="status" data-testid="backup-status"></p>
     </div>
 
     <!-- MAIN CALCULATOR CARD -->
@@ -599,6 +604,55 @@ const app = {
 
         if(list.innerHTML === '') {
             list.innerHTML = '<span class="sub-text">Portfolio is 100% in Target Currency.</span>';
+        }
+    },
+
+    downloadBackup() {
+        this.syncAllFromDOM();
+        const data = {
+            assets: this.data.assets, income: this.data.income, expense: this.data.expense,
+            history: this.data.history, target: document.getElementById('target-currency').value
+        };
+        const backup = JSON.stringify({ format: 'cursum-v2-backup', version: 1, data }, null, 2);
+        const url = URL.createObjectURL(new Blob([backup], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'cursum-v2-backup.json';
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        document.getElementById('backup-status').textContent = 'Backup download requested. Keep the file somewhere secure.';
+    },
+
+    validateBackup(backup) {
+        const isCurrency = value => typeof value === 'string' && /^[A-Z]{3}$/.test(value);
+        const isRow = row => row && Number.isSafeInteger(row.id) && Number.isFinite(row.amount) && isCurrency(row.currency);
+        const isSnapshot = entry => entry && Number.isFinite(entry.ts) && typeof entry.dateStr === 'string' &&
+            entry.dateStr.length <= 100 && Number.isFinite(entry.total) && isCurrency(entry.currency);
+        const data = backup && backup.data;
+        if (backup?.format !== 'cursum-v2-backup' || backup.version !== 1 || !data ||
+            !Array.isArray(data.assets) || data.assets.length > 5000 || !data.assets.every(isRow) ||
+            !Array.isArray(data.income) || data.income.length > 5000 || !data.income.every(isRow) ||
+            !Array.isArray(data.history) || data.history.length > 50 || !data.history.every(isSnapshot) ||
+            !isCurrency(data.target) || !data.expense || !isCurrency(data.expense.currency) ||
+            !(data.expense.amount === null || (Number.isFinite(data.expense.amount) && data.expense.amount >= 0))) {
+            throw new Error('Invalid backup');
+        }
+        return data;
+    },
+
+    async restoreBackup(input) {
+        const file = input.files && input.files[0];
+        input.value = '';
+        if (!file) return;
+        const status = document.getElementById('backup-status');
+        try {
+            if (file.size > 5 * 1024 * 1024) throw new Error('Backup is too large');
+            const data = this.validateBackup(JSON.parse(await file.text()));
+            if (!confirm('Replace the v2 data in this browser with this backup? Download a backup of the current v2 copy first if you need to keep it. The current version will not change.')) return;
+            localStorage.setItem('finRadarDataV2', JSON.stringify(data));
+            location.reload();
+        } catch (error) {
+            status.textContent = 'Could not restore this v2 backup. Check the file and browser storage; your existing copy was not replaced.';
         }
     },
 
