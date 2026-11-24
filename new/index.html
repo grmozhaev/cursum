@@ -200,10 +200,11 @@
             </div>
             <div class="sub-text" style="margin-bottom: 12px">Assets ÷ monthly expenses; assumes income stops and expenses stay the same.</div>
             
-            <div class="sub-text">Projections below add all income to assets and exclude expenses.</div>
-            <div class="stat-line"><span>+3 Months</span> <span class="stat-val" id="proj-3m">--</span></div>
-            <div class="stat-line"><span>+6 Months</span> <span class="stat-val" id="proj-6m">--</span></div>
-            <div class="stat-line"><span>+12 Months</span> <span class="stat-val" id="proj-12m">--</span></div>
+            <div class="sub-text">Assumes income and expenses stay constant. Blank income counts as zero; negative balances show a projected shortfall. No investment returns or inflation are included.</div>
+            <div class="stat-line"><span>Monthly income − expenses</span> <span class="stat-val" id="net-monthly" data-testid="net-monthly">--</span></div>
+            <div class="stat-line"><span>+3 Months</span> <span class="stat-val" id="proj-3m" data-testid="projection-3m">--</span></div>
+            <div class="stat-line"><span>+6 Months</span> <span class="stat-val" id="proj-6m" data-testid="projection-6m">--</span></div>
+            <div class="stat-line"><span>+12 Months</span> <span class="stat-val" id="proj-12m" data-testid="projection-12m">--</span></div>
         </div>
 
         <!-- 3. Sensitivity -->
@@ -424,8 +425,9 @@ const app = {
         const expense = expenseAmount === '' ? null : Number(expenseAmount);
         const expenseRateAvailable = Boolean(this.rates[expenseCurrency] && this.rates[target]);
         const assetsRatesAvailable = assets.every(a => !a.amount || Boolean(this.rates[a.currency] && this.rates[target]));
-        const totalExpense = expense !== null && Number.isFinite(expense) && expense > 0 && expenseRateAvailable ? getVal(expense, expenseCurrency) : null;
-        return { totalAsset, totalIncome, totalExpense, expenseRateAvailable, assetsRatesAvailable, composition, target };
+        const incomeRatesAvailable = income.every(i => !i.amount || Boolean(this.rates[i.currency] && this.rates[target]));
+        const totalExpense = expense !== null && Number.isFinite(expense) && expense >= 0 && expenseRateAvailable ? getVal(expense, expenseCurrency) : null;
+        return { totalAsset, totalIncome, totalExpense, expenseRateAvailable, assetsRatesAvailable, incomeRatesAvailable, composition, target };
     },
 
     update() {
@@ -501,10 +503,23 @@ const app = {
         }
         runwayDiv.style.color = 'var(--text-main)';
 
-        const project = (m) => fmt.format(res.totalAsset + (res.totalIncome * m));
-        document.getElementById('proj-3m').textContent = project(3);
-        document.getElementById('proj-6m').textContent = project(6);
-        document.getElementById('proj-12m').textContent = project(12);
+        const projections = [3, 6, 12];
+        const netEl = document.getElementById('net-monthly');
+        if (!res.expenseRateAvailable || !res.assetsRatesAvailable || !res.incomeRatesAvailable) {
+            netEl.textContent = 'Exchange rate unavailable';
+            projections.forEach(m => { document.getElementById(`proj-${m}m`).textContent = '—'; });
+            return;
+        }
+        if (res.totalExpense === null) {
+            netEl.textContent = 'Add monthly expenses';
+            projections.forEach(m => { document.getElementById(`proj-${m}m`).textContent = '—'; });
+            return;
+        }
+        const netMonthly = res.totalIncome - res.totalExpense;
+        netEl.textContent = fmt.format(netMonthly);
+        projections.forEach(m => {
+            document.getElementById(`proj-${m}m`).textContent = fmt.format(res.totalAsset + netMonthly * m);
+        });
     },
 
     renderSensitivity(comp, total, target, fmt) {
