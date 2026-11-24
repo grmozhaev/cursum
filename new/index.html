@@ -106,11 +106,6 @@
         .stat-val { font-weight: 600; }
         .sub-text { font-size: 0.8rem; color: var(--text-sub); margin-top: -4px; margin-bottom: 8px; display: block;}
 
-        /* Slider */
-        .slider-container { margin-top: 10px; }
-        input[type=range] { width: 100%; margin: 10px 0; }
-        .slider-labels { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-sub); }
-
         /* History */
         .chart-container { position: relative; height: 250px; width: 100%; }
         .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
@@ -132,11 +127,18 @@
         .preview-notice a { color: #155e64; font-weight: 600; }
         .preview-notice details { margin-top: 8px; }
         .preview-notice summary { cursor: pointer; font-weight: 600; width: fit-content; }
-        .sync-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 12px; }
-        .sync-heading h2 { font-size: 0.95rem; margin: 0; }
-        .sync-heading p { flex: 1 1 260px; font-size: 0.875rem; }
-        #cloud-account form:not([hidden]) { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 10px 0; }
-        #cloud-account form label { display: grid; gap: 3px; font-size: 0.875rem; }
+        .app-header h1 .preview-pill { display: inline-block; vertical-align: middle; letter-spacing: 0; }
+        .account-area { min-width: 0; }
+        .sync-heading { display: flex; justify-content: flex-end; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+        .sync-heading p { font-size: 0.875rem; text-align: right; }
+        #cloud-account { position: relative; }
+        #cloud-account summary { cursor: pointer; list-style: none; border: 1px solid #c2d3d6; border-radius: 8px; background: white; padding: 8px 14px; font-weight: 600; color: var(--primary); }
+        #cloud-account summary::-webkit-details-marker { display: none; }
+        .account-popover { position: absolute; z-index: 10; right: 0; top: calc(100% + 8px); width: min(320px, calc(100vw - 28px)); box-sizing: border-box; background: white; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px rgba(28,55,65,.16); padding: 16px; }
+        #cloud-account form:not([hidden]) { display: grid; gap: 10px; }
+        #cloud-account form label { display: grid; gap: 4px; font-size: 0.875rem; }
+        #cloud-account form input { width: 100%; box-sizing: border-box; }
+        #cloud-account form button { justify-self: start; }
         #cloud-choices { margin-top: 12px; }
         .preview-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
         .preview-notice .sub-text { margin-top: 12px; }
@@ -144,7 +146,7 @@
         h2 { font-size: 1.25rem; letter-spacing: -0.02em; }
         h3 { color: #435c68; font-size: 0.875rem; letter-spacing: 0.06em; }
         .big-number { font-size: clamp(2.5rem, 5vw, 3.5rem); letter-spacing: -0.05em; overflow-wrap: anywhere; }
-        .total-label, .sub-text, .stat-line, .slider-labels { font-size: 0.875rem; }
+        .total-label, .sub-text, .stat-line { font-size: 0.875rem; }
         .total-section { margin-top: 24px; gap: 18px; }
         .row-group { gap: 10px; }
         input, select { background: #f8fafb; border-color: var(--border); border-radius: 8px; }
@@ -165,7 +167,10 @@
             .container { gap: 14px; }
             .card { padding: 20px; }
             .dashboard-grid .card { padding: 20px; }
-            .app-header { flex-wrap: wrap; gap: 12px; }
+            .app-header { flex-wrap: wrap; gap: 14px; }
+            .account-area { width: 100%; }
+            .sync-heading { justify-content: space-between; }
+            .sync-heading p { text-align: left; flex: 1 1 180px; }
             .header-actions { align-items: flex-start; flex-wrap: wrap; }
             .total-section { align-items: flex-start; }
             .input-row { flex-wrap: wrap; }
@@ -178,35 +183,36 @@
 
 <main class="container">
     <header class="app-header">
-        <div>
-            <h1>Cursum</h1>
+        <div class="brand">
+            <h1>Cursum <span class="preview-pill">Version 2 preview</span></h1>
             <p>Your assets, across currencies, in one place.</p>
         </div>
-        <span class="preview-pill">Version 2 preview</span>
+        <section class="account-area" aria-label="Account and sync">
+            <div class="sync-heading">
+                <p id="cloud-status" role="status" data-testid="cloud-status">Starting…</p>
+                <button id="cloud-retry" class="btn-secondary" type="button" hidden onclick="cloud.retry()" data-testid="cloud-retry">Retry sync</button>
+                <details id="cloud-account" data-testid="cloud-account">
+                    <summary>Account</summary>
+                    <div class="account-popover">
+                        <form id="cloud-form" onsubmit="cloud.signIn(event)" data-testid="cloud-form">
+                            <label>Email <input id="cloud-email" type="email" autocomplete="username" required data-testid="cloud-email"></label>
+                            <label>Password <input id="cloud-password" type="password" autocomplete="current-password" required data-testid="cloud-password"></label>
+                            <button class="btn-primary" type="submit" data-testid="cloud-signin">Sign in</button>
+                        </form>
+                        <button id="cloud-signout" class="btn-secondary" type="button" hidden onclick="cloud.signOut()" data-testid="cloud-signout">Sign out</button>
+                    </div>
+                </details>
+            </div>
+        </section>
     </header>
 
     <div class="preview-notice">
-        <p><strong>V2 has a separate copy of your data.</strong> Sign in to sync it between devices. <a href="../">Open current version</a></p>
-        <section aria-labelledby="cloud-heading">
-            <div class="sync-heading"><h2 id="cloud-heading">V2 cloud sync</h2>
-                <p id="cloud-status" role="status" data-testid="cloud-status">Starting…</p>
-                <button id="cloud-retry" class="btn-secondary" type="button" hidden onclick="cloud.retry()" data-testid="cloud-retry">Retry sync</button>
-            </div>
-            <details id="cloud-account" open data-testid="cloud-account">
-            <summary>Account</summary>
-            <form id="cloud-form" onsubmit="cloud.signIn(event)" data-testid="cloud-form">
-                <label>Email <input id="cloud-email" type="email" autocomplete="username" required data-testid="cloud-email"></label>
-                <label>Password <input id="cloud-password" type="password" autocomplete="current-password" required data-testid="cloud-password"></label>
-                <button class="btn-primary" type="submit" data-testid="cloud-signin">Sign in</button>
-            </form>
-            <button id="cloud-signout" class="btn-secondary" type="button" hidden onclick="cloud.signOut()" data-testid="cloud-signout">Sign out</button>
-            </details>
-            <div id="cloud-choices" hidden>
-                <p>Choose a copy to continue. Replacing a copy cannot be undone without a backup.</p>
-                <button id="cloud-use-remote" class="btn-secondary" type="button" onclick="cloud.useRemote()" data-testid="cloud-use-remote">Use v2 cloud data</button>
-                <button class="btn-secondary" type="button" onclick="cloud.uploadLocal()" data-testid="cloud-upload">Upload this browser’s v2 data</button>
-            </div>
-        </section>
+        <p><strong>V2 has a separate copy of your data.</strong> <a href="../">Open current version</a></p>
+        <div id="cloud-choices" hidden>
+            <p>Choose a copy to continue. Replacing a copy cannot be undone without a backup.</p>
+            <button id="cloud-use-remote" class="btn-secondary" type="button" onclick="cloud.useRemote()" data-testid="cloud-use-remote">Use v2 cloud data</button>
+            <button class="btn-secondary" type="button" onclick="cloud.uploadLocal()" data-testid="cloud-upload">Upload this browser’s v2 data</button>
+        </div>
         <details data-testid="preview-tools">
             <summary>Copy, backup, and restore</summary>
             <div class="preview-tools">
@@ -231,7 +237,6 @@
         <p id="save-status" role="status" data-testid="save-status" style="font-size: 0.85rem; color: var(--text-sub);">Loading saved data…</p>
         <p class="sub-text">Edits save automatically in this browser. A history snapshot records the current total for the chart.</p>
         <p id="snapshot-status" role="status" data-testid="snapshot-status" class="sub-text"></p>
-        <p id="snapshot-hint" role="status" data-testid="snapshot-hint" class="sub-text"></p>
 
         <div class="total-section">
             <div>
@@ -278,23 +283,6 @@
     <!-- DASHBOARD WIDGETS -->
     <div class="dashboard-grid">
         
-        <!-- 1. What-If Slider -->
-        <div class="card">
-            <h3>Simulate FX Shift</h3>
-            <div class="sub-text">Change foreign rates vs Target</div>
-            <div class="slider-container">
-                <input type="range" id="fx-slider" min="-20" max="20" value="0" step="1" oninput="app.update()">
-                <div class="slider-labels">
-                    <span>-20%</span>
-                    <span id="slider-val" style="color:var(--primary); font-weight:bold;">0%</span>
-                    <span>+20%</span>
-                </div>
-            </div>
-            <p style="font-size: 0.8rem; color: var(--text-sub); margin-top: 10px;">
-                Calculates total as if all foreign currencies strengthened or weakened by this %.
-            </p>
-        </div>
-
         <!-- 2. Projections & Runway -->
         <div class="card">
             <h3>Projections</h3>
@@ -311,14 +299,6 @@
             <div class="stat-line"><span>+12 Months</span> <span class="stat-val" id="proj-12m" data-testid="projection-12m">--</span></div>
         </div>
 
-        <!-- 3. Sensitivity -->
-        <div class="card">
-            <h3>Sensitivity</h3>
-            <div class="sub-text">Impact of ±5% move on Total</div>
-            <div id="sensitivity-list">
-                <!-- Javascript populates this -->
-            </div>
-        </div>
     </div>
 
     <!-- HISTORY CHART -->
@@ -543,13 +523,11 @@ const app = {
         const expenseAmount = document.getElementById('expense-amount').value;
         const expenseCurrency = document.getElementById('expense-currency').value;
         const targetEl = document.getElementById('target-currency');
-        const sliderEl = document.getElementById('fx-slider');
         
         // Safety check if DOM elements missing
-        if(!targetEl || !sliderEl) return { totalAsset: 0, totalIncome: 0, composition: {}, target: 'USD' };
+        if (!targetEl) return { totalAsset: 0, totalIncome: 0, composition: {}, target: 'USD' };
 
         const target = targetEl.value;
-        const sliderPct = parseFloat(sliderEl.value) / 100;
 
         const hasRate = (curr) => curr === target || Boolean(this.rates[curr] && this.rates[target]);
         const getVal = (amt, curr) => {
@@ -557,9 +535,6 @@ const app = {
             if (!hasRate(curr)) return 0;
             const valInBase = amt / this.rates[curr];
             const valInTarget = valInBase * this.rates[target];
-            if (curr !== target) {
-                return valInTarget * (1 + sliderPct);
-            }
             return valInTarget;
         };
 
@@ -590,24 +565,12 @@ const app = {
         const res = this.calculate();
         const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: res.target });
 
-        // Update Slider Text
-        const sliderVal = document.getElementById('fx-slider').value;
-        const sliderTxt = document.getElementById('slider-val');
-        if(sliderTxt) {
-            sliderTxt.textContent = (sliderVal > 0 ? '+' : '') + sliderVal + '%';
-            sliderTxt.style.color = sliderVal == 0 ? 'var(--text-sub)' : (sliderVal > 0 ? '#38b2ac' : '#e53e3e');
-        }
-
         // Main Total
         const totalEl = document.getElementById('main-total');
         if(totalEl) totalEl.textContent = res.assetsRatesAvailable ? fmt.format(res.totalAsset) : '—';
         const conversionStatus = document.getElementById('conversion-status');
         conversionStatus.textContent = res.assetsRatesAvailable ? '' : 'Some asset exchange rates are unavailable. The total and snapshot are unavailable until rates can be loaded.';
-        const simulated = Number(sliderVal) !== 0;
-        document.querySelector('[data-testid="save-snapshot"]').disabled = !res.assetsRatesAvailable || simulated;
-        document.getElementById('snapshot-hint').textContent = simulated
-            ? 'Reset the FX shift to 0% before adding a history snapshot.'
-            : '';
+        document.querySelector('[data-testid="save-snapshot"]').disabled = !res.assetsRatesAvailable;
 
         // Composition Bar
         this.renderComposition(res.assetsRatesAvailable ? res.composition : {}, res.assetsRatesAvailable ? res.totalAsset : 0);
@@ -615,10 +578,6 @@ const app = {
         // Projections
         this.renderProjections(res, fmt);
 
-        // Sensitivity
-        if (res.assetsRatesAvailable) this.renderSensitivity(res.composition, res.totalAsset, res.target, fmt);
-        else document.getElementById('sensitivity-list').textContent = 'Exchange rate unavailable';
-        
         // Save changes in this browser
         this.saveState();
     },
@@ -684,38 +643,6 @@ const app = {
         projections.forEach(m => {
             document.getElementById(`proj-${m}m`).textContent = fmt.format(res.totalAsset + netMonthly * m);
         });
-    },
-
-    renderSensitivity(comp, total, target, fmt) {
-        const list = document.getElementById('sensitivity-list');
-        if(!list) return;
-        list.innerHTML = '';
-        
-        Object.keys(comp).forEach(curr => {
-            if(curr === target) return; 
-
-            const val = comp[curr];
-            const impact5 = val * 0.05; 
-            
-            const div = document.createElement('div');
-            div.className = 'stat-line';
-            div.style.borderBottom = '1px dashed var(--border)';
-            div.style.padding = '4px 0';
-            
-            const delta = new Intl.NumberFormat('en-US', { 
-                style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 
-            }).format(impact5);
-
-            div.innerHTML = `
-                <span>${curr} &plusmn;5%</span>
-                <span class="stat-val" style="font-size:0.9rem">&plusmn; ${target} ${delta}</span>
-            `;
-            list.appendChild(div);
-        });
-
-        if(list.innerHTML === '') {
-            list.innerHTML = '<span class="sub-text">Portfolio is 100% in Target Currency.</span>';
-        }
     },
 
     downloadBackup() {
@@ -788,7 +715,7 @@ const app = {
 
     saveSnapshot() {
         const res = this.calculate();
-        if (!res.assetsRatesAvailable || Number(document.getElementById('fx-slider').value) !== 0) return;
+        if (!res.assetsRatesAvailable) return;
         const now = new Date();
         const snapshot = {
             ts: now.getTime(),
