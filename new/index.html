@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cursum · Your multicurrency overview</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../config.js"></script>
     <style>
         :root {
             --bg: #f8f9fa;
@@ -178,7 +180,22 @@
     </header>
 
     <div class="preview-notice">
-        <p><strong>Preview data stays in this browser.</strong> It does not sync or change your current version. <a href="../">Open current version</a></p>
+        <p><strong>V2 has a separate copy of your data.</strong> Sign in to sync it between devices. <a href="../">Open current version</a></p>
+        <section aria-labelledby="cloud-heading">
+            <h2 id="cloud-heading">V2 cloud sync</h2>
+            <p id="cloud-status" role="status" data-testid="cloud-status">Starting…</p>
+            <form id="cloud-form" onsubmit="cloud.signIn(event)" data-testid="cloud-form">
+                <label>Email <input id="cloud-email" type="email" autocomplete="username" required data-testid="cloud-email"></label>
+                <label>Password <input id="cloud-password" type="password" autocomplete="current-password" required data-testid="cloud-password"></label>
+                <button class="btn-primary" type="submit" data-testid="cloud-signin">Sign in</button>
+            </form>
+            <button id="cloud-signout" class="btn-secondary" type="button" hidden onclick="cloud.signOut()" data-testid="cloud-signout">Sign out</button>
+            <div id="cloud-choices" hidden>
+                <p>Choose a copy to continue. Replacing a copy cannot be undone without a backup.</p>
+                <button id="cloud-use-remote" class="btn-secondary" type="button" onclick="cloud.useRemote()" data-testid="cloud-use-remote">Use v2 cloud data</button>
+                <button class="btn-secondary" type="button" onclick="cloud.uploadLocal()" data-testid="cloud-upload">Upload this browser’s v2 data</button>
+            </div>
+        </section>
         <details data-testid="preview-tools">
             <summary>Copy, backup, and restore</summary>
             <div class="preview-tools">
@@ -396,7 +413,7 @@ const app = {
         const status = document.getElementById('save-status');
         try {
             localStorage.setItem('finRadarDataV2', JSON.stringify(cleanData));
-            status.textContent = 'Saved in this browser · Not synced';
+            status.textContent = 'Saved in this browser · See sync status above';
             status.style.color = 'var(--text-sub)';
             return true;
         } catch (error) {
@@ -732,7 +749,7 @@ const app = {
         try {
             if (file.size > 5 * 1024 * 1024) throw new Error('Backup is too large');
             const data = this.validateBackup(JSON.parse(await file.text()));
-            if (!confirm('Replace the v2 data in this browser with this backup? Download a backup of the current v2 copy first if you need to keep it. The current version will not change.')) return;
+            if (!confirm('Replace the v2 data in this browser with this backup? Download a backup of the current v2 copy first if you need to keep it. If v2 sync is active, the replacement will sync to other devices. The current version will not change.')) return;
             localStorage.setItem('finRadarDataV2', JSON.stringify(data));
             location.reload();
         } catch (error) {
@@ -746,7 +763,7 @@ const app = {
             document.getElementById('copy-status').textContent = 'No current-version data was found in this browser. Open the current version here first.';
             return;
         }
-        if (!confirm('Replace the v2 preview data with a copy of the current version in this browser? Your current version will not change.')) return;
+        if (!confirm('Replace the v2 data in this browser with a copy from the current version? If v2 sync is active, the replacement will sync to other devices. Your current version will not change.')) return;
         try {
             const copy = JSON.parse(original);
             if (!Array.isArray(copy.assets) || !Array.isArray(copy.income) || !Array.isArray(copy.history)) throw new Error('Invalid data');
@@ -847,9 +864,10 @@ const app = {
 
 // Start logic when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    app.init();
+    app.init().then(() => cloud.start());
 });
 </script>
+<script src="sync-v2.js"></script>
 </body>
 </html>
 
