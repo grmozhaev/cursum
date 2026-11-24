@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial State Radar</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #f8f9fa;
+            --surface: #ffffff;
+            --text-main: #2d3748;
+            --text-sub: #718096;
+            --primary: #3182ce;
+            --accent: #38b2ac;
+            --danger: #e53e3e;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            display: grid;
+            gap: 24px;
+        }
+
+        /* --- Cards & Layout --- */
+        .card {
+            background: var(--surface);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        h2, h3 { margin: 0 0 16px 0; font-weight: 600; color: var(--text-main); }
+        h2 { font-size: 1.25rem; }
+        h3 { font-size: 1rem; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .row-group { display: flex; flex-direction: column; gap: 10px; }
+        .input-row { display: flex; gap: 10px; align-items: center; }
+        
+        input, select {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 1rem;
+            background: var(--bg);
+            color: var(--text-main);
+        }
+        input:focus, select:focus { outline: 2px solid var(--primary); border-color: transparent; }
+        
+        .amount-input { flex: 2; }
+        .curr-select { flex: 1; }
+        .btn-icon { background: none; border: none; color: var(--text-sub); cursor: pointer; font-size: 1.2rem; }
+        .btn-icon:hover { color: var(--danger); }
+
+        .btn-text {
+            background: none; border: none; color: var(--primary); 
+            font-weight: 600; cursor: pointer; padding: 0; font-size: 0.9rem; margin-top: 5px;
+        }
+
+        /* --- Total Display --- */
+        .total-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 20px;
+        }
+        .total-label { font-size: 0.9rem; color: var(--text-sub); margin-bottom: 4px; }
+        .big-number { font-size: 2.5rem; font-weight: 700; color: var(--text-main); line-height: 1; }
+        .target-select-wrapper { text-align: right; }
+
+        /* --- Composition Bar --- */
+        .comp-bar-container { height: 8px; display: flex; border-radius: 4px; overflow: hidden; margin-top: 10px; background: var(--border); }
+        .comp-segment { height: 100%; transition: width 0.3s ease; }
+        .comp-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 0.8rem; color: var(--text-sub); }
+        .legend-item span { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+
+        /* --- Dashboard Grid --- */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+        }
+
+        /* Sensitivity & Projections */
+        .stat-line { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 6px; }
+        .stat-val { font-weight: 600; }
+        .sub-text { font-size: 0.8rem; color: var(--text-sub); margin-top: -4px; margin-bottom: 8px; display: block;}
+
+        /* Slider */
+        .slider-container { margin-top: 10px; }
+        input[type=range] { width: 100%; margin: 10px 0; }
+        .slider-labels { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-sub); }
+
+        /* History */
+        .chart-container { position: relative; height: 250px; width: 100%; }
+        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .btn-primary { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+        .btn-secondary { background: var(--bg); color: var(--text-main); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+        
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <div class="card">
+        <h2>Cursum v2 preview</h2>
+        <p>This preview saves a separate copy in this browser only. Changes here do not sync or change your current version.</p>
+        <p><a href="../">Open current version</a></p>
+        <button class="btn-secondary" type="button" onclick="app.copyCurrentData()" data-testid="copy-current-data">Copy data from current version</button>
+        <p id="copy-status" role="status" data-testid="copy-status"></p>
+    </div>
+
+    <!-- MAIN CALCULATOR CARD -->
+    <div class="card">
+        <div class="header-actions">
+            <h2>Portfolio</h2>
+            <button class="btn-primary" onclick="app.saveSnapshot()">Save Snapshot</button>
+        </div>
+
+        <div class="total-section">
+            <div>
+                <div class="total-label">Total Estimate</div>
+                <div class="big-number" id="main-total">0.00</div>
+            </div>
+            <div class="target-select-wrapper">
+                <div class="total-label">Currency</div>
+                <select id="target-currency" onchange="app.update()"></select>
+            </div>
+        </div>
+
+        <!-- Composition Visuals -->
+        <div id="comp-bar" class="comp-bar-container"></div>
+        <div id="comp-legend" class="comp-legend"></div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border); margin: 20px 0;">
+
+        <!-- Inputs -->
+        <h3>Assets</h3>
+        <div id="asset-list" class="row-group"></div>
+        <button class="btn-text" onclick="app.addRow('asset')">+ Add Asset</button>
+
+        <div style="margin-top: 20px;">
+            <h3>Monthly Income (Optional)</h3>
+            <div id="income-list" class="row-group"></div>
+            <button class="btn-text" onclick="app.addRow('income')">+ Add Income Source</button>
+        </div>
+        <div style="margin-top: 20px;">
+            <h3>Monthly Expenses</h3>
+            <p class="sub-text">Enter the amount you typically spend each month to calculate runway.</p>
+            <div class="input-row">
+                <label for="expense-amount">Amount</label>
+                <input id="expense-amount" type="number" min="0" step="any" class="amount-input" placeholder="0.00" oninput="app.update()" data-testid="expense-amount">
+                <label for="expense-currency">Currency</label>
+                <select id="expense-currency" class="curr-select" onchange="app.update()" data-testid="expense-currency"></select>
+            </div>
+        </div>
+    </div>
+
+    <!-- DASHBOARD WIDGETS -->
+    <div class="dashboard-grid">
+        
+        <!-- 1. What-If Slider -->
+        <div class="card">
+            <h3>Simulate FX Shift</h3>
+            <div class="sub-text">Change foreign rates vs Target</div>
+            <div class="slider-container">
+                <input type="range" id="fx-slider" min="-20" max="20" value="0" step="1" oninput="app.update()">
+                <div class="slider-labels">
+                    <span>-20%</span>
+                    <span id="slider-val" style="color:var(--primary); font-weight:bold;">0%</span>
+                    <span>+20%</span>
+                </div>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-sub); margin-top: 10px;">
+                Calculates total as if all foreign currencies strengthened or weakened by this %.
+            </p>
+        </div>
+
+        <!-- 2. Projections & Runway -->
+        <div class="card">
+            <h3>Projections</h3>
+            <div class="stat-line">
+                <span>Runway</span>
+                <span class="stat-val" id="runway-val" role="status" data-testid="runway-value">--</span>
+            </div>
+            <div class="sub-text" style="margin-bottom: 12px">Assets ÷ monthly expenses; assumes income stops and expenses stay the same.</div>
+            
+            <div class="sub-text">Projections below add all income to assets and exclude expenses.</div>
+            <div class="stat-line"><span>+3 Months</span> <span class="stat-val" id="proj-3m">--</span></div>
+            <div class="stat-line"><span>+6 Months</span> <span class="stat-val" id="proj-6m">--</span></div>
+            <div class="stat-line"><span>+12 Months</span> <span class="stat-val" id="proj-12m">--</span></div>
+        </div>
+
+        <!-- 3. Sensitivity -->
+        <div class="card">
+            <h3>Sensitivity</h3>
+            <div class="sub-text">Impact of ±5% move on Total</div>
+            <div id="sensitivity-list">
+                <!-- Javascript populates this -->
+            </div>
+        </div>
+    </div>
+
+    <!-- HISTORY CHART -->
+    <div class="card">
+        <div class="header-actions">
+            <h3>History</h3>
+            <button class="btn-secondary" onclick="app.clearHistory()">Clear Data</button>
+        </div>
+        <div class="chart-container">
+            <canvas id="historyChart"></canvas>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const API_URL = 'https://open.er-api.com/v6/latest/USD';
+
+const app = {
+    rates: {},
+    currencies: [],
+    data: {
+        assets: [],
+        income: [],
+        expense: { amount: null, currency: 'USD' },
+        history: [],
+        target: 'USD'
+    },
+    chart: null,
+    colors: ['#3182ce', '#38b2ac', '#805ad5', '#d53f8c', '#dd6b20', '#319795', '#718096'],
+
+    async init() {
+        // Load local storage
+        const saved = localStorage.getItem('finRadarDataV2');
+        if (saved) this.data = JSON.parse(saved);
+
+        // Ensure defaults if empty
+        if (!this.data.assets || !this.data.assets.length) this.data.assets = [{id: 1, amount: 0, currency: 'USD'}];
+        if (!this.data.income || !this.data.income.length) this.data.income = [{id: 1, amount: 0, currency: 'USD'}];
+        if (!this.data.history) this.data.history = [];
+        if (!this.data.expense) this.data.expense = { amount: null, currency: 'USD' };
+        
+        // Fetch Rates
+        try {
+            const res = await fetch(API_URL);
+            const json = await res.json();
+            this.rates = json.rates;
+            this.currencies = Object.keys(this.rates).sort();
+        } catch (e) {
+            console.error("API Error", e);
+            // Fallback rates if offline
+            this.rates = {USD:1, EUR:0.92, RUB:90, GBP:0.79, JPY:150, CNY:7.2}; 
+            this.currencies = Object.keys(this.rates);
+        }
+
+        // Keep stored currency selections if the rates service is unavailable.
+        const savedCurrencies = [this.data.target, this.data.expense.currency, ...this.data.assets.map(item => item.currency), ...this.data.income.map(item => item.currency)];
+        savedCurrencies.filter(Boolean).forEach(code => { if (!this.currencies.includes(code)) this.currencies.push(code); });
+        this.renderInputs();
+        this.initChart();
+        this.update();
+    },
+
+    saveState() {
+        // We sync from DOM before saving to ensure what you see is what is saved
+        this.syncAllFromDOM();
+        
+        const cleanData = {
+            assets: this.data.assets,
+            income: this.data.income,
+            expense: this.data.expense,
+            history: this.data.history,
+            target: document.getElementById('target-currency').value
+        };
+        
+        localStorage.setItem('finRadarDataV2', JSON.stringify(cleanData));
+    },
+
+    getInputs(type) {
+        const container = document.getElementById(type === 'asset' ? 'asset-list' : 'income-list');
+        if (!container) return []; // Safety check
+        const rows = container.querySelectorAll('.input-row');
+        return Array.from(rows).map(row => ({
+            id: parseInt(row.dataset.id),
+            amount: parseFloat(row.querySelector('input').value) || 0,
+            currency: row.querySelector('select').value
+        }));
+    },
+
+    // Helper to capture state of BOTH lists
+    syncAllFromDOM() {
+        this.data.assets = this.getInputs('asset');
+        this.data.income = this.getInputs('income');
+        const amount = document.getElementById('expense-amount');
+        const currency = document.getElementById('expense-currency');
+        this.data.expense = { amount: amount.value === '' ? null : Number(amount.value), currency: currency.value };
+    },
+
+    addRow(type) {
+        // Fix: Capture both lists so the "other" list doesn't revert
+        this.syncAllFromDOM();
+
+        const list = type === 'asset' ? this.data.assets : this.data.income;
+        list.push({ id: Date.now(), amount: 0, currency: 'USD' });
+
+        this.renderInputs(); 
+        this.update();
+    },
+
+    removeRow(type, id) {
+        // Fix: Capture both lists before removing
+        this.syncAllFromDOM();
+
+        if (type === 'asset') {
+            this.data.assets = this.data.assets.filter(x => x.id !== id);
+        } else {
+            this.data.income = this.data.income.filter(x => x.id !== id);
+        }
+
+        this.renderInputs();
+        this.update();
+    },
+
+    renderInputs() {
+        const targetSel = document.getElementById('target-currency');
+        if(!targetSel) return; // Stop if DOM not ready
+
+        // Populate Target Dropdown only if empty
+        if(targetSel.options.length === 0) {
+            this.currencies.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c; opt.text = c;
+                targetSel.add(opt);
+            });
+            targetSel.value = this.data.target || 'USD';
+        }
+
+        const expenseCurrency = document.getElementById('expense-currency');
+        expenseCurrency.innerHTML = '';
+        this.currencies.forEach(c => {
+            const opt = document.createElement('option'); opt.value = c; opt.text = c; expenseCurrency.add(opt);
+        });
+        expenseCurrency.value = this.data.expense.currency || 'USD';
+        document.getElementById('expense-amount').value = this.data.expense.amount ?? '';
+
+        ['asset', 'income'].forEach(type => {
+            const container = document.getElementById(type === 'asset' ? 'asset-list' : 'income-list');
+            if(!container) return;
+
+            const sourceData = type === 'asset' ? this.data.assets : this.data.income;
+            
+            container.innerHTML = '';
+            sourceData.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'input-row';
+                div.dataset.id = item.id;
+                div.innerHTML = `
+                    <input type="number" class="amount-input" value="${item.amount || ''}" placeholder="0.00" oninput="app.update()">
+                    <select class="curr-select" onchange="app.update()">
+                        ${this.currencies.map(c => `<option value="${c}" ${c===item.currency?'selected':''}>${c}</option>`).join('')}
+                    </select>
+                    <button class="btn-icon" onclick="app.removeRow('${type}', ${item.id})">&times;</button>
+                `;
+                container.appendChild(div);
+            });
+        });
+    },
+
+    calculate() {
+        const assets = this.getInputs('asset');
+        const income = this.getInputs('income');
+        const expenseAmount = document.getElementById('expense-amount').value;
+        const expenseCurrency = document.getElementById('expense-currency').value;
+        const targetEl = document.getElementById('target-currency');
+        const sliderEl = document.getElementById('fx-slider');
+        
+        // Safety check if DOM elements missing
+        if(!targetEl || !sliderEl) return { totalAsset: 0, totalIncome: 0, composition: {}, target: 'USD' };
+
+        const target = targetEl.value;
+        const sliderPct = parseFloat(sliderEl.value) / 100;
+
+        const getVal = (amt, curr) => {
+            if(!this.rates[curr]) return 0;
+            const valInBase = amt / this.rates[curr];
+            const valInTarget = valInBase * this.rates[target];
+            if (curr !== target) {
+                return valInTarget * (1 + sliderPct);
+            }
+            return valInTarget;
+        };
+
+        let totalAsset = 0;
+        const composition = {}; 
+        
+        assets.forEach(a => {
+            const val = getVal(a.amount, a.currency);
+            totalAsset += val;
+            if(!composition[a.currency]) composition[a.currency] = 0;
+            composition[a.currency] += val;
+        });
+
+        let totalIncome = 0;
+        income.forEach(i => {
+            totalIncome += getVal(i.amount, i.currency);
+        });
+
+        const expense = expenseAmount === '' ? null : Number(expenseAmount);
+        const expenseRateAvailable = Boolean(this.rates[expenseCurrency] && this.rates[target]);
+        const assetsRatesAvailable = assets.every(a => !a.amount || Boolean(this.rates[a.currency] && this.rates[target]));
+        const totalExpense = expense !== null && Number.isFinite(expense) && expense > 0 && expenseRateAvailable ? getVal(expense, expenseCurrency) : null;
+        return { totalAsset, totalIncome, totalExpense, expenseRateAvailable, assetsRatesAvailable, composition, target };
+    },
+
+    update() {
+        const res = this.calculate();
+        const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: res.target });
+
+        // Update Slider Text
+        const sliderVal = document.getElementById('fx-slider').value;
+        const sliderTxt = document.getElementById('slider-val');
+        if(sliderTxt) {
+            sliderTxt.textContent = (sliderVal > 0 ? '+' : '') + sliderVal + '%';
+            sliderTxt.style.color = sliderVal == 0 ? 'var(--text-sub)' : (sliderVal > 0 ? '#38b2ac' : '#e53e3e');
+        }
+
+        // Main Total
+        const totalEl = document.getElementById('main-total');
+        if(totalEl) totalEl.textContent = fmt.format(res.totalAsset);
+
+        // Composition Bar
+        this.renderComposition(res.composition, res.totalAsset);
+
+        // Projections
+        this.renderProjections(res, fmt);
+
+        // Sensitivity
+        this.renderSensitivity(res.composition, res.totalAsset, res.target, fmt);
+        
+        // Save state silently
+        this.saveState();
+    },
+
+    renderComposition(comp, total) {
+        const bar = document.getElementById('comp-bar');
+        const leg = document.getElementById('comp-legend');
+        if(!bar || !leg) return;
+        
+        bar.innerHTML = ''; leg.innerHTML = '';
+
+        if(total === 0) return;
+
+        const sorted = Object.entries(comp).sort((a,b) => b[1] - a[1]);
+        
+        sorted.forEach((item, idx) => {
+            const [curr, val] = item;
+            const pct = (val / total) * 100;
+            if(pct < 1) return;
+
+            const color = this.colors[idx % this.colors.length];
+
+            const seg = document.createElement('div');
+            seg.className = 'comp-segment';
+            seg.style.width = pct + '%';
+            seg.style.backgroundColor = color;
+            bar.appendChild(seg);
+
+            const lItem = document.createElement('div');
+            lItem.className = 'legend-item';
+            lItem.innerHTML = `<span style="background:${color}"></span>${curr} ${Math.round(pct)}%`;
+            leg.appendChild(lItem);
+        });
+    },
+
+    renderProjections(res, fmt) {
+        const runwayDiv = document.getElementById('runway-val');
+        if(!runwayDiv) return;
+
+        if (!res.expenseRateAvailable || !res.assetsRatesAvailable) {
+            runwayDiv.textContent = 'Exchange rate unavailable';
+        } else if (!res.totalExpense || res.totalExpense <= 0) {
+            runwayDiv.textContent = 'Add monthly expenses';
+        } else {
+            runwayDiv.textContent = (res.totalAsset / res.totalExpense).toFixed(1) + ' months';
+        }
+        runwayDiv.style.color = 'var(--text-main)';
+
+        const project = (m) => fmt.format(res.totalAsset + (res.totalIncome * m));
+        document.getElementById('proj-3m').textContent = project(3);
+        document.getElementById('proj-6m').textContent = project(6);
+        document.getElementById('proj-12m').textContent = project(12);
+    },
+
+    renderSensitivity(comp, total, target, fmt) {
+        const list = document.getElementById('sensitivity-list');
+        if(!list) return;
+        list.innerHTML = '';
+        
+        Object.keys(comp).forEach(curr => {
+            if(curr === target) return; 
+
+            const val = comp[curr];
+            const impact5 = val * 0.05; 
+            
+            const div = document.createElement('div');
+            div.className = 'stat-line';
+            div.style.borderBottom = '1px dashed var(--border)';
+            div.style.padding = '4px 0';
+            
+            const delta = new Intl.NumberFormat('en-US', { 
+                style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 
+            }).format(impact5);
+
+            div.innerHTML = `
+                <span>${curr} &plusmn;5%</span>
+                <span class="stat-val" style="font-size:0.9rem">&plusmn; ${target} ${delta}</span>
+            `;
+            list.appendChild(div);
+        });
+
+        if(list.innerHTML === '') {
+            list.innerHTML = '<span class="sub-text">Portfolio is 100% in Target Currency.</span>';
+        }
+    },
+
+    copyCurrentData() {
+        const original = localStorage.getItem('finRadarData');
+        if (!original) {
+            document.getElementById('copy-status').textContent = 'No current-version data was found in this browser. Open the current version here first.';
+            return;
+        }
+        if (!confirm('Replace the v2 preview data with a copy of the current version in this browser? Your current version will not change.')) return;
+        try {
+            const copy = JSON.parse(original);
+            if (!Array.isArray(copy.assets) || !Array.isArray(copy.income) || !Array.isArray(copy.history)) throw new Error('Invalid data');
+            copy.expense = { amount: null, currency: copy.target || 'USD' };
+            localStorage.setItem('finRadarDataV2', JSON.stringify(copy));
+            location.reload();
+        } catch (error) {
+            document.getElementById('copy-status').textContent = 'Could not copy data. The preview was not changed.';
+        }
+    },
+
+    saveSnapshot() {
+        const res = this.calculate();
+        const now = new Date();
+        const snapshot = {
+            ts: now.getTime(),
+            dateStr: now.toLocaleDateString(),
+            total: res.totalAsset,
+            currency: res.target
+        };
+
+        this.data.history.push(snapshot);
+        if(this.data.history.length > 50) this.data.history.shift();
+        
+        this.saveState();
+        this.updateChart();
+        
+        const btn = document.querySelector('.btn-primary');
+        const oldTxt = btn.textContent;
+        btn.textContent = "Saved!";
+        setTimeout(() => btn.textContent = oldTxt, 1500);
+    },
+
+    clearHistory() {
+        if(confirm("Delete all history snapshots?")) {
+            this.data.history = [];
+            this.saveState();
+            this.updateChart();
+        }
+    },
+
+    initChart() {
+        const ctx = document.getElementById('historyChart').getContext('2d');
+        if(!ctx) return;
+
+        this.chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                    y: { beginAtZero: false, grid: { color: '#f1f5f9' } }
+                }
+            }
+        });
+        this.updateChart();
+    },
+
+    updateChart() {
+        if(!this.chart) return;
+        
+        const history = this.data.history || [];
+        const currentTarget = document.getElementById('target-currency').value;
+        const relevantHistory = history.filter(h => h.currency === currentTarget);
+
+        this.chart.data.labels = relevantHistory.map(h => h.dateStr);
+        this.chart.data.datasets = [{
+            label: 'Total (' + currentTarget + ')',
+            data: relevantHistory.map(h => h.total),
+            borderColor: '#3182ce',
+            backgroundColor: 'rgba(49, 130, 206, 0.1)',
+            borderWidth: 2,
+            tension: 0.3,
+            fill: true,
+            pointRadius: 3
+        }];
+        this.chart.update();
+    }
+};
+
+// Start logic when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    app.init();
+});
+</script>
+</body>
+</html>
+
