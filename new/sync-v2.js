@@ -10,8 +10,13 @@ const cloud = {
   applying: false,
   timer: null,
   remote: null,
+  connecting: false,
+  connectionFailed: false,
   get metaKey() { return `cursum-v2-sync-${this.user.id}`; },
-  status(message) { document.getElementById('cloud-status').textContent = message; },
+  status(message, retry = false) {
+    document.getElementById('cloud-status').textContent = message;
+    document.getElementById('cloud-retry').hidden = !retry;
+  },
   choices(show) { document.getElementById('cloud-choices').hidden = !show; },
   metadata() {
     localStorage.setItem(this.metaKey, JSON.stringify({ revision: this.revision, dirty: this.dirty, baseline: this.baseline }));
@@ -41,7 +46,7 @@ const cloud = {
     else this.status('Sign in to synchronize your data.');
     window.addEventListener('online', () => this.refresh());
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.refresh(); });
-    setInterval(() => { if (this.user && this.ready) this.refresh(); }, 15000);
+    setInterval(() => { if (this.user && (this.ready || this.connectionFailed)) this.refresh(); }, 15000);
   },
   async signIn(event) {
     event.preventDefault();
@@ -55,15 +60,25 @@ const cloud = {
     await this.connected(data.user);
   },
   async connected(user) {
+    if (this.connecting) return;
+    this.connecting = true;
+    this.connectionFailed = false;
     this.user = user;
     this.ready = false;
     document.getElementById('cloud-form').hidden = true;
     document.getElementById('cloud-signout').hidden = false;
+    document.getElementById('cloud-account').open = false;
     this.status('Checking cloud data…');
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(this.metaKey)); } catch (_) {}
     const result = await this.read();
-    if (result.error) { this.status('Could not check cloud data. Your browser copy is unchanged. Retry by signing in again.'); return; }
+    this.connecting = false;
+    if (!this.user || this.user.id !== user.id) return;
+    if (result.error) {
+      this.connectionFailed = true;
+      this.status('Could not check cloud data. Your browser copy is unchanged. Retrying automatically.', true);
+      return;
+    }
     this.remote = result.row;
     if (saved && localStorage.getItem('cursum-v2-local-owner') === user.id && Number.isSafeInteger(saved.revision) && saved.revision > 0) {
       this.revision = saved.revision;
@@ -86,8 +101,12 @@ const cloud = {
     document.getElementById('cloud-use-remote').disabled = !this.remote;
   },
   async read() {
-    const { data, error } = await this.client.from('cursum_v2_data').select('data,revision').maybeSingle();
-    return { row: data, error };
+    try {
+      const { data, error } = await this.client.from('cursum_v2_data').select('data,revision').maybeSingle();
+      return { row: data, error };
+    } catch (error) {
+      return { row: null, error };
+    }
   },
   schedule() {
     clearTimeout(this.timer);
@@ -100,9 +119,15 @@ const cloud = {
     const snapshot = localStorage.getItem('finRadarDataV2');
     let parsed;
     try { parsed = JSON.parse(snapshot); } catch (_) { this.saving = false; this.status('Cannot sync invalid browser data.'); return; }
-    const { data, error } = await this.client.rpc('save_cursum_v2_data', { p_data: parsed, p_expected_revision: this.revision });
+    let result;
+    try {
+      result = await this.client.rpc('save_cursum_v2_data', { p_data: parsed, p_expected_revision: this.revision });
+    } catch (error) {
+      result = { data: null, error };
+    }
     this.saving = false;
-    if (error) { this.status('Sync failed. Your changes remain in this browser and will be retried.'); return; }
+    const { data, error } = result;
+    if (error) { this.status('Sync failed. Your changes remain in this browser and will be retried.', true); return; }
     if (data === null) { this.conflict(); return; }
     this.revision = data;
     this.baseline = snapshot;
@@ -119,18 +144,26 @@ const cloud = {
     document.getElementById('cloud-use-remote').disabled = false;
     this.status('Data changed on another device. Both copies are preserved. Back up this browser copy, then choose which version to keep.');
   },
+  async retry() {
+    if (!this.user) return;
+    if (this.connectionFailed) await this.connected(this.user);
+    else if (this.ready) await this.refresh();
+  },
   async refresh() {
-    if (!this.user || !this.ready || this.saving) return;
+    if (!this.user || this.saving || this.connecting) return;
+    if (this.connectionFailed) { await this.connected(this.user); return; }
+    if (!this.ready) return;
     const user = this.user;
     const revision = this.revision;
     const { row, error } = await this.read();
     // A save or sign-out may have completed while this read was in flight.
     if (this.user !== user || !this.ready || this.saving || this.revision !== revision) return;
-    if (error) { this.status('Cloud unavailable. Your browser copy is preserved; retrying.'); return; }
+    if (error) { this.status('Cloud unavailable. Your browser copy is preserved; retrying.', true); return; }
     if (!row || row.revision !== this.revision) {
       if (this.dirty || !row) { this.conflict(); return; }
       this.applyRemote(row);
     } else if (this.dirty) this.schedule();
+    else this.status('Signed in. V2 data is synchronized.');
   },
   applyRemote(row) {
     if (!row || !row.data || !Array.isArray(row.data.assets) || !Array.isArray(row.data.income) || !Array.isArray(row.data.history)) {
@@ -184,9 +217,10 @@ const cloud = {
     clearTimeout(this.timer);
     const { error } = await this.client.auth.signOut();
     if (error) { this.status('Could not sign out: ' + error.message); return; }
-    this.user = null; this.ready = false; this.dirty = false;
+    this.user = null; this.ready = false; this.dirty = false; this.connectionFailed = false;
     this.choices(false);
     document.getElementById('cloud-form').hidden = false;
+    document.getElementById('cloud-account').open = true;
     document.getElementById('cloud-signout').hidden = true;
     this.status('Signed out. The browser copy remains on this device.');
   }

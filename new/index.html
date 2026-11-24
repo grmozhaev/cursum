@@ -132,6 +132,12 @@
         .preview-notice a { color: #155e64; font-weight: 600; }
         .preview-notice details { margin-top: 8px; }
         .preview-notice summary { cursor: pointer; font-weight: 600; width: fit-content; }
+        .sync-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 12px; }
+        .sync-heading h2 { font-size: 0.95rem; margin: 0; }
+        .sync-heading p { flex: 1 1 260px; font-size: 0.875rem; }
+        #cloud-account form { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 10px 0; }
+        #cloud-account form label { display: grid; gap: 3px; font-size: 0.875rem; }
+        #cloud-choices { margin-top: 12px; }
         .preview-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
         .preview-notice .sub-text { margin-top: 12px; }
         .card { padding: 28px; border: 1px solid #e3ebed; border-radius: 16px; }
@@ -182,14 +188,19 @@
     <div class="preview-notice">
         <p><strong>V2 has a separate copy of your data.</strong> Sign in to sync it between devices. <a href="../">Open current version</a></p>
         <section aria-labelledby="cloud-heading">
-            <h2 id="cloud-heading">V2 cloud sync</h2>
-            <p id="cloud-status" role="status" data-testid="cloud-status">Starting…</p>
+            <div class="sync-heading"><h2 id="cloud-heading">V2 cloud sync</h2>
+                <p id="cloud-status" role="status" data-testid="cloud-status">Starting…</p>
+                <button id="cloud-retry" class="btn-secondary" type="button" hidden onclick="cloud.retry()" data-testid="cloud-retry">Retry sync</button>
+            </div>
+            <details id="cloud-account" open data-testid="cloud-account">
+            <summary>Account</summary>
             <form id="cloud-form" onsubmit="cloud.signIn(event)" data-testid="cloud-form">
                 <label>Email <input id="cloud-email" type="email" autocomplete="username" required data-testid="cloud-email"></label>
                 <label>Password <input id="cloud-password" type="password" autocomplete="current-password" required data-testid="cloud-password"></label>
                 <button class="btn-primary" type="submit" data-testid="cloud-signin">Sign in</button>
             </form>
             <button id="cloud-signout" class="btn-secondary" type="button" hidden onclick="cloud.signOut()" data-testid="cloud-signout">Sign out</button>
+            </details>
             <div id="cloud-choices" hidden>
                 <p>Choose a copy to continue. Replacing a copy cannot be undone without a backup.</p>
                 <button id="cloud-use-remote" class="btn-secondary" type="button" onclick="cloud.useRemote()" data-testid="cloud-use-remote">Use v2 cloud data</button>
