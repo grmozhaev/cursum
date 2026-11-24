@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial State Radar</title>
+    <title>Cursum · Your multicurrency overview</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -116,29 +116,87 @@
         .btn-secondary { background: var(--bg); color: var(--text-main); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
         
         .hidden { display: none; }
+
+        /* A quieter visual hierarchy for the overview and its controls. */
+        :root { --bg: #f2f5f7; --text-main: #152d3a; --text-sub: #516875; --primary: #155e64; --accent: #1d8b85; --border: #d4e0e4; --shadow: 0 8px 28px rgba(28, 55, 65, 0.06); }
+        body { padding: 40px 20px 72px; font-size: 1rem; line-height: 1.5; }
+        .container { max-width: 960px; gap: 20px; }
+        .app-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 4px 2px 8px; }
+        .app-header h1 { font-size: 2rem; letter-spacing: -0.04em; line-height: 1.1; margin: 0 0 8px; }
+        .app-header p { margin: 0; color: var(--text-sub); }
+        .preview-pill { color: #155e64; background: #dff1ed; border-radius: 999px; font-size: 0.875rem; padding: 6px 12px; white-space: nowrap; font-weight: 600; }
+        .preview-notice { background: #e8f2f1; border: 1px solid #c5dfda; border-radius: 12px; padding: 14px 18px; color: #285650; }
+        .preview-notice p { margin: 0; }
+        .preview-notice a { color: #155e64; font-weight: 600; }
+        .preview-notice details { margin-top: 8px; }
+        .preview-notice summary { cursor: pointer; font-weight: 600; width: fit-content; }
+        .preview-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+        .preview-notice .sub-text { margin-top: 12px; }
+        .card { padding: 28px; border: 1px solid #e3ebed; border-radius: 16px; }
+        h2 { font-size: 1.25rem; letter-spacing: -0.02em; }
+        h3 { color: #435c68; font-size: 0.875rem; letter-spacing: 0.06em; }
+        .big-number { font-size: clamp(2.5rem, 5vw, 3.5rem); letter-spacing: -0.05em; overflow-wrap: anywhere; }
+        .total-label, .sub-text, .stat-line, .slider-labels { font-size: 0.875rem; }
+        .total-section { margin-top: 24px; gap: 18px; }
+        .row-group { gap: 10px; }
+        input, select { background: #f8fafb; border-color: var(--border); border-radius: 8px; }
+        input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid #52a7a1; outline-offset: 2px; }
+        .btn-primary { background: var(--primary); border-radius: 8px; font-weight: 600; padding: 10px 16px; }
+        .btn-primary:hover { background: #104b50; }
+        .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+        .btn-secondary { background: #fff; border-color: #c2d3d6; border-radius: 8px; font-size: 0.875rem; padding: 8px 12px; }
+        .btn-text { font-size: 0.875rem; margin-top: 10px; }
+        .btn-icon { min-width: 36px; min-height: 40px; }
+        .dashboard-grid { grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 16px; }
+        .dashboard-grid .card { padding: 24px; }
+        .stat-line { gap: 12px; }
+        .stat-val { text-align: right; overflow-wrap: anywhere; }
+        .header-actions { gap: 16px; }
+        @media (max-width: 560px) {
+            body { padding: 24px 14px 48px; }
+            .container { gap: 14px; }
+            .card { padding: 20px; }
+            .dashboard-grid .card { padding: 20px; }
+            .app-header { flex-wrap: wrap; gap: 12px; }
+            .header-actions { align-items: flex-start; flex-wrap: wrap; }
+            .total-section { align-items: flex-start; }
+            .input-row { flex-wrap: wrap; }
+            .input-row label { font-size: 0.875rem; }
+            .big-number { font-size: 2.5rem; }
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    
-    <div class="card">
-        <h2>Cursum v2 preview</h2>
-        <p>This preview saves a separate copy in this browser only. Changes here do not sync or change your current version.</p>
-        <p><a href="../">Open current version</a></p>
-        <button class="btn-secondary" type="button" onclick="app.copyCurrentData()" data-testid="copy-current-data">Copy data from current version</button>
-        <p id="copy-status" role="status" data-testid="copy-status"></p>
-        <button class="btn-secondary" type="button" onclick="app.downloadBackup()" data-testid="download-v2-backup">Download v2 backup</button>
-        <button class="btn-secondary" type="button" onclick="document.getElementById('restore-file').click()" data-testid="restore-v2-backup">Restore v2 backup</button>
-        <input id="restore-file" type="file" accept="application/json,.json" hidden onchange="app.restoreBackup(this)" data-testid="restore-file">
-        <p class="sub-text">Backups include your v2 assets, income, expenses, and history. Restoring replaces the v2 copy in this browser.</p>
-        <p id="backup-status" role="status" data-testid="backup-status"></p>
+<main class="container">
+    <header class="app-header">
+        <div>
+            <h1>Cursum</h1>
+            <p>Your assets, across currencies, in one place.</p>
+        </div>
+        <span class="preview-pill">Version 2 preview</span>
+    </header>
+
+    <div class="preview-notice">
+        <p><strong>Preview data stays in this browser.</strong> It does not sync or change your current version. <a href="../">Open current version</a></p>
+        <details data-testid="preview-tools">
+            <summary>Copy, backup, and restore</summary>
+            <div class="preview-tools">
+                <button class="btn-secondary" type="button" onclick="app.copyCurrentData()" data-testid="copy-current-data">Copy data from current version</button>
+                <button class="btn-secondary" type="button" onclick="app.downloadBackup()" data-testid="download-v2-backup">Download v2 backup</button>
+                <button class="btn-secondary" type="button" onclick="document.getElementById('restore-file').click()" data-testid="restore-v2-backup">Restore v2 backup</button>
+                <input id="restore-file" type="file" accept="application/json,.json" hidden onchange="app.restoreBackup(this)" data-testid="restore-file">
+            </div>
+            <p id="copy-status" role="status" data-testid="copy-status"></p>
+            <p class="sub-text">Backups include your v2 assets, income, expenses, and history. Restoring replaces the v2 copy in this browser.</p>
+            <p id="backup-status" role="status" data-testid="backup-status"></p>
+        </details>
     </div>
 
     <!-- MAIN CALCULATOR CARD -->
     <div class="card">
         <div class="header-actions">
-            <h2>Portfolio</h2>
+            <h2>Your portfolio</h2>
             <button class="btn-primary" onclick="app.saveSnapshot()" data-testid="save-snapshot">Add history snapshot</button>
         </div>
 
@@ -149,12 +207,12 @@
 
         <div class="total-section">
             <div>
-                <div class="total-label">Total Estimate</div>
+                <div class="total-label">Total assets</div>
                 <div class="big-number" id="main-total">0.00</div>
             </div>
             <div class="target-select-wrapper">
                 <div class="total-label">Currency</div>
-                <select id="target-currency" onchange="app.update(); app.updateChart()" data-testid="target-currency"></select>
+                <select id="target-currency" aria-label="Display currency" onchange="app.update(); app.updateChart()" data-testid="target-currency"></select>
             </div>
         </div>
 
@@ -248,7 +306,7 @@
         </div>
     </div>
 
-</div>
+</main>
 
 <script>
 const API_URL = 'https://open.er-api.com/v6/latest/USD';
