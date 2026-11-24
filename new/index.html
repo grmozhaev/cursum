@@ -145,6 +145,7 @@
         <p id="save-status" role="status" data-testid="save-status" style="font-size: 0.85rem; color: var(--text-sub);">Loading saved data…</p>
         <p class="sub-text">Edits save automatically in this browser. A history snapshot records the current total for the chart.</p>
         <p id="snapshot-status" role="status" data-testid="snapshot-status" class="sub-text"></p>
+        <p id="snapshot-hint" role="status" data-testid="snapshot-hint" class="sub-text"></p>
 
         <div class="total-section">
             <div>
@@ -153,7 +154,7 @@
             </div>
             <div class="target-select-wrapper">
                 <div class="total-label">Currency</div>
-                <select id="target-currency" onchange="app.update()"></select>
+                <select id="target-currency" onchange="app.update(); app.updateChart()" data-testid="target-currency"></select>
             </div>
         </div>
 
@@ -238,8 +239,10 @@
     <div class="card">
         <div class="header-actions">
             <h3>History</h3>
-            <button class="btn-secondary" onclick="app.clearHistory()">Clear Data</button>
+            <button class="btn-secondary" type="button" onclick="app.clearHistory()" data-testid="clear-history">Clear history</button>
         </div>
+        <p id="history-info" role="status" data-testid="history-info" class="sub-text"></p>
+        <p class="sub-text">Shows snapshots saved in the selected currency; older snapshots are not converted. Up to 50 snapshots are kept across all currencies.</p>
         <div class="chart-container">
             <canvas id="historyChart"></canvas>
         </div>
@@ -514,7 +517,11 @@ const app = {
         if(totalEl) totalEl.textContent = res.assetsRatesAvailable ? fmt.format(res.totalAsset) : '—';
         const conversionStatus = document.getElementById('conversion-status');
         conversionStatus.textContent = res.assetsRatesAvailable ? '' : 'Some asset exchange rates are unavailable. The total and snapshot are unavailable until rates can be loaded.';
-        document.querySelector('[data-testid="save-snapshot"]').disabled = !res.assetsRatesAvailable;
+        const simulated = Number(sliderVal) !== 0;
+        document.querySelector('[data-testid="save-snapshot"]').disabled = !res.assetsRatesAvailable || simulated;
+        document.getElementById('snapshot-hint').textContent = simulated
+            ? 'Reset the FX shift to 0% before adding a history snapshot.'
+            : '';
 
         // Composition Bar
         this.renderComposition(res.assetsRatesAvailable ? res.composition : {}, res.assetsRatesAvailable ? res.totalAsset : 0);
@@ -695,7 +702,7 @@ const app = {
 
     saveSnapshot() {
         const res = this.calculate();
-        if (!res.assetsRatesAvailable) return;
+        if (!res.assetsRatesAvailable || Number(document.getElementById('fx-slider').value) !== 0) return;
         const now = new Date();
         const snapshot = {
             ts: now.getTime(),
@@ -719,9 +726,15 @@ const app = {
     },
 
     clearHistory() {
-        if(confirm("Delete all history snapshots?")) {
+        if (confirm('Delete all history snapshots in every currency? Your assets, income, and expenses will remain.')) {
+            const previousHistory = this.data.history;
             this.data.history = [];
-            this.saveState();
+            if (!this.saveState()) {
+                this.data.history = previousHistory;
+                document.getElementById('snapshot-status').textContent = 'History was not cleared.';
+                return;
+            }
+            document.getElementById('snapshot-status').textContent = 'History cleared.';
             this.updateChart();
         }
     },
@@ -752,6 +765,12 @@ const app = {
         const history = this.data.history || [];
         const currentTarget = document.getElementById('target-currency').value;
         const relevantHistory = history.filter(h => h.currency === currentTarget);
+        const info = document.getElementById('history-info');
+        info.textContent = relevantHistory.length
+            ? `${relevantHistory.length} of ${history.length} snapshots shown for ${currentTarget}.`
+            : history.length
+                ? `No snapshots for ${currentTarget}. ${history.length} saved in other currencies.`
+                : 'No snapshots yet. Add one to start tracking your history.';
 
         this.chart.data.labels = relevantHistory.map(h => h.dateStr);
         this.chart.data.datasets = [{
