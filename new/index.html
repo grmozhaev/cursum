@@ -129,8 +129,12 @@
     <div class="card">
         <div class="header-actions">
             <h2>Portfolio</h2>
-            <button class="btn-primary" onclick="app.saveSnapshot()" data-testid="save-snapshot">Save Snapshot</button>
+            <button class="btn-primary" onclick="app.saveSnapshot()" data-testid="save-snapshot">Add history snapshot</button>
         </div>
+
+        <p id="save-status" role="status" data-testid="save-status" style="font-size: 0.85rem; color: var(--text-sub);">Loading saved data…</p>
+        <p class="sub-text">Edits save automatically in this browser. A history snapshot records the current total for the chart.</p>
+        <p id="snapshot-status" role="status" data-testid="snapshot-status" class="sub-text"></p>
 
         <div class="total-section">
             <div>
@@ -318,7 +322,17 @@ const app = {
             target: document.getElementById('target-currency').value
         };
         
-        localStorage.setItem('finRadarDataV2', JSON.stringify(cleanData));
+        const status = document.getElementById('save-status');
+        try {
+            localStorage.setItem('finRadarDataV2', JSON.stringify(cleanData));
+            status.textContent = 'Saved in this browser · Not synced';
+            status.style.color = 'var(--text-sub)';
+            return true;
+        } catch (error) {
+            status.textContent = 'Could not save in this browser. Your latest changes may be lost if you leave or reload.';
+            status.style.color = 'var(--danger)';
+            return false;
+        }
     },
 
     getInputs(type) {
@@ -489,7 +503,7 @@ const app = {
         if (res.assetsRatesAvailable) this.renderSensitivity(res.composition, res.totalAsset, res.target, fmt);
         else document.getElementById('sensitivity-list').textContent = 'Exchange rate unavailable';
         
-        // Save state silently
+        // Save changes in this browser
         this.saveState();
     },
 
@@ -617,16 +631,18 @@ const app = {
             currency: res.target
         };
 
+        const previousHistory = this.data.history.slice();
         this.data.history.push(snapshot);
-        if(this.data.history.length > 50) this.data.history.shift();
-        
-        this.saveState();
+        if (this.data.history.length > 50) this.data.history.shift();
+
+        const snapshotStatus = document.getElementById('snapshot-status');
+        if (!this.saveState()) {
+            this.data.history = previousHistory;
+            snapshotStatus.textContent = 'Snapshot was not saved.';
+            return;
+        }
         this.updateChart();
-        
-        const btn = document.querySelector('.btn-primary');
-        const oldTxt = btn.textContent;
-        btn.textContent = "Saved!";
-        setTimeout(() => btn.textContent = oldTxt, 1500);
+        snapshotStatus.textContent = 'History snapshot added.';
     },
 
     clearHistory() {
