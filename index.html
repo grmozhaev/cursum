@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Financial State Radar</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <style>
         :root {
             --bg: #f8f9fa;
@@ -117,6 +119,23 @@
 
 <div class="container">
     
+    <div class="card">
+        <h2>Cloud sync</h2>
+        <p id="cloud-status" role="status" data-testid="cloud-status">Starting…</p>
+        <form id="cloud-form" onsubmit="cloud.signIn(event)" data-testid="cloud-form">
+            <label>Email <input id="cloud-email" type="email" autocomplete="username" required data-testid="cloud-email"></label>
+            <label>Password <input id="cloud-password" type="password" autocomplete="current-password" required data-testid="cloud-password"></label>
+            <button class="btn-primary" type="submit" data-testid="cloud-signin">Sign in</button>
+        </form>
+        <button id="cloud-signout" class="btn-secondary" type="button" hidden onclick="cloud.signOut()" data-testid="cloud-signout">Sign out</button>
+        <button class="btn-secondary" type="button" onclick="cloud.backup()" data-testid="cloud-backup">Download browser backup</button>
+        <div id="cloud-choices" hidden>
+            <p>Choose a copy to continue. Replacing a copy cannot be undone without a backup.</p>
+            <button id="cloud-use-remote" class="btn-secondary" type="button" onclick="cloud.useRemote()" data-testid="cloud-use-remote">Use cloud data</button>
+            <button class="btn-secondary" type="button" onclick="cloud.uploadLocal()" data-testid="cloud-upload">Upload browser data</button>
+        </div>
+    </div>
+
     <!-- MAIN CALCULATOR CARD -->
     <div class="card">
         <div class="header-actions">
@@ -248,6 +267,9 @@ const app = {
             this.currencies = Object.keys(this.rates);
         }
 
+        // Keep stored currency selections if the rates service is unavailable.
+        const savedCurrencies = [this.data.target, ...this.data.assets.map(item => item.currency), ...this.data.income.map(item => item.currency)];
+        savedCurrencies.filter(Boolean).forEach(code => { if (!this.currencies.includes(code)) this.currencies.push(code); });
         this.renderInputs();
         this.initChart();
         this.update();
@@ -571,8 +593,10 @@ const app = {
 
 // Start logic when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    app.init();
+    app.init().then(() => cloud.start());
 });
 </script>
+<script src="sync.js"></script>
 </body>
 </html>
+
