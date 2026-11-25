@@ -69,6 +69,8 @@ const cloud = {
     document.getElementById('cloud-signout').hidden = false;
     document.getElementById('cloud-account').open = false;
     document.getElementById('cloud-account').hidden = true;
+    document.getElementById('private-dashboard').hidden = false;
+    document.getElementById('private-tools').hidden = false;
     this.status('Checking cloud data…');
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(this.metaKey)); } catch (_) {}
@@ -81,6 +83,10 @@ const cloud = {
       return;
     }
     this.remote = result.row;
+    if (localStorage.getItem('cursum-v2-cleared-on-signout') === user.id && this.remote) {
+      this.applyRemote(this.remote);
+      return;
+    }
     if (saved && localStorage.getItem('cursum-v2-local-owner') === user.id && Number.isSafeInteger(saved.revision) && saved.revision > 0) {
       this.revision = saved.revision;
       this.baseline = saved.baseline;
@@ -131,6 +137,7 @@ const cloud = {
     if (error) { this.status('Sync failed. Your changes remain in this browser and will be retried.', true); return; }
     if (data === null) { this.conflict(); return; }
     this.revision = data;
+    localStorage.removeItem('cursum-v2-cleared-on-signout');
     this.baseline = snapshot;
     localStorage.setItem('cursum-v2-local-owner', this.user.id);
     this.dirty = localStorage.getItem('finRadarDataV2') !== snapshot;
@@ -172,6 +179,7 @@ const cloud = {
     }
     try { app.validateBackup({ format: 'cursum-v2-backup', version: 1, data: row.data }); }
     catch (_) { this.status('Cloud data has an unexpected format. The browser copy was not changed.'); return; }
+    localStorage.removeItem('cursum-v2-cleared-on-signout');
     this.applying = true;
     // Preserve currencies even if the exchange-rate service is temporarily unavailable.
     const codes = [row.data.target, row.data.expense.currency, ...row.data.assets.map(item => item.currency), ...row.data.income.map(item => item.currency)];
@@ -213,17 +221,45 @@ const cloud = {
     await this.flush();
   },
   async signOut() {
-    if (this.saving) { this.status('Please wait for the current sync to finish before signing out.'); return; }
-    if (this.dirty && !confirm('There are unsynced changes in this browser. Sign out anyway?')) return;
+    if (this.saving || this.connecting) { this.status('Please wait for the current sync to finish before signing out.'); return; }
+    if (!this.ready || this.dirty || !this.baseline || localStorage.getItem('finRadarDataV2') !== this.baseline) {
+      this.status('Your browser copy is not synchronized. Resolve the sync issue and back up your data before signing out.', true);
+      return;
+    }
     clearTimeout(this.timer);
-    const { error } = await this.client.auth.signOut();
-    if (error) { this.status('Could not sign out: ' + error.message); return; }
+    const dashboard = document.getElementById('private-dashboard');
+    const tools = document.getElementById('private-tools');
+    dashboard.inert = true;
+    tools.inert = true;
+    const userId = this.user.id;
+    let error;
+    try { ({ error } = await this.client.auth.signOut()); }
+    catch (failure) { error = failure; }
+    if (error) {
+      dashboard.inert = false;
+      tools.inert = false;
+      this.status('Could not sign out: ' + error.message);
+      return;
+    }
+    dashboard.hidden = true;
+    tools.hidden = true;
     this.user = null; this.ready = false; this.dirty = false; this.connectionFailed = false;
     this.choices(false);
     document.getElementById('cloud-form').hidden = false;
     document.getElementById('cloud-account').hidden = false;
-    document.getElementById('cloud-account').open = true;
     document.getElementById('cloud-signout').hidden = true;
-    this.status('Signed out. The browser copy remains on this device.');
+    try {
+      if (localStorage.getItem('finRadarDataV2') !== this.baseline) {
+        this.status('Signed out, but data changed during sign-out and remains in this browser to prevent data loss. Sign in to synchronize it.');
+        return;
+      }
+      localStorage.removeItem('finRadarDataV2');
+      localStorage.removeItem('cursum-v2-local-owner');
+      localStorage.removeItem(`cursum-v2-sync-${userId}`);
+      localStorage.setItem('cursum-v2-cleared-on-signout', userId);
+      location.reload();
+    } catch (_) {
+      this.status('Signed out, but this browser could not clear its local data. Clear this site’s browser storage to remove it.');
+    }
   }
 };

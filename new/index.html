@@ -213,7 +213,7 @@
             <button id="cloud-use-remote" class="btn-secondary" type="button" onclick="cloud.useRemote()" data-testid="cloud-use-remote">Use v2 cloud data</button>
             <button class="btn-secondary" type="button" onclick="cloud.uploadLocal()" data-testid="cloud-upload">Upload this browser’s v2 data</button>
         </div>
-        <details data-testid="preview-tools">
+        <details id="private-tools" data-testid="preview-tools" hidden>
             <summary>Copy, backup, and restore</summary>
             <div class="preview-tools">
                 <button class="btn-secondary" type="button" onclick="app.copyCurrentData()" data-testid="copy-current-data">Copy data from current version</button>
@@ -227,6 +227,7 @@
         </details>
     </div>
 
+    <div id="private-dashboard" data-testid="private-dashboard" hidden>
     <!-- MAIN CALCULATOR CARD -->
     <div class="card">
         <div class="header-actions">
@@ -314,6 +315,7 @@
         </div>
     </div>
 
+    </div>
 </main>
 
 <script>
@@ -805,7 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
     app.init().then(() => cloud.start());
 });
 </script>
-<script src="sync-v2.js"></script>
+<script src="sync-v2.js?v=privacy-1"></script>
 </body>
 </html>
 
